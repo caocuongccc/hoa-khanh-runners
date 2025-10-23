@@ -98,7 +98,7 @@ const MainApp = () => {
               <TrendingUp className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Nghiện Chạy Bộ</h1>
+              <h1 className="text-xl font-bold text-gray-900">Sự kiện chạy bộ nội bộ</h1>
               <p className="text-xs text-gray-500">Cộng đồng yêu chạy bộ VN</p>
             </div>
           </div>
@@ -627,10 +627,10 @@ const MainApp = () => {
               <div className="bg-blue-600 p-2 rounded-lg">
                 <TrendingUp className="w-5 h-5" />
               </div>
-              <span className="font-bold text-lg">Nghiện Chạy Bộ</span>
+              <span className="font-bold text-lg">Sự kiện chạy bộ nội bộ</span>
             </div>
             <p className="text-gray-400 text-sm">
-              Cộng đồng chạy bộ hàng đầu Việt Nam. Kết nối runners, chia sẻ đam mê.
+              Sự kiện chạy bộ nội bộ.
             </p>
           </div>
           
@@ -671,7 +671,7 @@ const MainApp = () => {
         </div>
 
         <div className="border-t border-gray-800 pt-8 text-center text-sm text-gray-400">
-          <p>© 2025 Nghiện Chạy Bộ. All rights reserved.</p>
+          <p>© 2025 Sự kiện chạy bộ nội bộ. All rights reserved.</p>
         </div>
       </div>
     </footer>
