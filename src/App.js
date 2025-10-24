@@ -145,7 +145,9 @@ const MainApp = () => {
 
   // ===== HOME PAGE =====
   const HomePage = () => (
+    
     <div className="space-y-8">
+      
       {/* Hero Section */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-400 rounded-2xl p-8 md:p-12 text-white">
         <div className="max-w-3xl">
