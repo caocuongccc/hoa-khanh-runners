@@ -47,7 +47,7 @@ const MainApp = () => {
       coverImage: 'https://images.unsplash.com/photo-1552674605-db6ffd4facb5?w=800',
       startDate: '06/01/2025',
       endDate: '02/02/2025',
-      participants: 156,
+      participants: 156, 
       status: 'active',
       description: 'Nối tiếp thành công của "Mùa hè rực rỡ" – sau challenge mùa hè HTR đã có thêm rất nhiều elite ultraroad...',
       rules: [
