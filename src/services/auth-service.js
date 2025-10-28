@@ -5,7 +5,7 @@ import {
   onAuthStateChanged
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { auth, db } from './firebase-config';
+import { auth, db } from './firebase';
 
 // Đăng ký user mới
 export const registerUser = async (email, password, name, role = 'member') => {
@@ -36,6 +36,7 @@ export const registerUser = async (email, password, name, role = 'member') => {
 export const loginUser = async (email, password) => {
   try {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    console.log('User logged in:', userCredential.user);
     const user = userCredential.user;
 
     // Lấy thông tin user từ Firestore

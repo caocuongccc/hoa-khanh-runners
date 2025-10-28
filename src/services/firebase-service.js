@@ -1,152 +1,42 @@
-import { 
-  collection, 
-  addDoc, 
-  updateDoc, 
-  doc, 
-  getDoc, 
-  getDocs, 
-  query, 
-  where,
-  orderBy,
-  Timestamp 
-} from 'firebase/firestore';
-import { db } from './firebase-config';
+// src/services/firebase-service.js
+import { db } from './firebase';
+import { collection, addDoc, getDocs, doc, getDoc, updateDoc, query, where } from 'firebase/firestore';
 
-// ===== EVENTS =====
-export const createEvent = async (eventData) => {
-  try {
-    const docRef = await addDoc(collection(db, 'events'), {
-      ...eventData,
-      status: 'active',
-      createdAt: Timestamp.now()
-    });
-    return { success: true, id: docRef.id };
-  } catch (error) {
-    console.error('Error creating event:', error);
-    return { success: false, error: error.message };
-  }
-};
 
-export const getEvents = async () => {
-  try {
-    const q = query(collection(db, 'events'), orderBy('createdAt', 'desc'));
-    const querySnapshot = await getDocs(q);
-    
-    const events = [];
-    querySnapshot.forEach((doc) => {
-      events.push({ id: doc.id, ...doc.data() });
-    });
-    
-    return { success: true, data: events };
-  } catch (error) {
-    console.error('Error getting events:', error);
-    return { success: false, error: error.message };
-  }
-};
+export async function createEvent(data) {
+const ref = await addDoc(collection(db, 'events'), {
+...data,
+createdAt: new Date().toISOString()
+});
+return ref.id;
+}
 
-export const getEventById = async (eventId) => {
-  try {
-    const docRef = doc(db, 'events', eventId);
-    const docSnap = await getDoc(docRef);
-    
-    if (docSnap.exists()) {
-      return { success: true, data: { id: docSnap.id, ...docSnap.data() } };
-    } else {
-      return { success: false, error: 'Event not found' };
-    }
-  } catch (error) {
-    console.error('Error getting event:', error);
-    return { success: false, error: error.message };
-  }
-};
 
-// ===== RULES =====
-export const getRules = async () => {
-  try {
-    const querySnapshot = await getDocs(collection(db, 'rules'));
-    const rules = [];
-    querySnapshot.forEach((doc) => {
-      rules.push({ id: doc.id, ...doc.data() });
-    });
-    return { success: true, data: rules };
-  } catch (error) {
-    console.error('Error getting rules:', error);
-    return { success: false, error: error.message };
-  }
-};
+export async function getEvents() {
+const q = query(collection(db, 'events'));
+const snap = await getDocs(q);
+return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
 
-export const getRuleGroups = async () => {
-  try {
-    const q = query(collection(db, 'ruleGroups'), orderBy('order', 'asc'));
-    const querySnapshot = await getDocs(q);
-    const groups = [];
-    querySnapshot.forEach((doc) => {
-      groups.push({ id: doc.id, ...doc.data() });
-    });
-    return { success: true, data: groups };
-  } catch (error) {
-    console.error('Error getting rule groups:', error);
-    return { success: false, error: error.message };
-  }
-};
 
-// ===== EVENT RULES =====
-export const getEventRules = async (eventId) => {
-  try {
-    const q = query(
-      collection(db, 'eventRules'),
-      where('eventId', '==', eventId),
-      orderBy('order', 'asc')
-    );
-    const querySnapshot = await getDocs(q);
-    
-    const eventRules = [];
-    for (const docSnap of querySnapshot.docs) {
-      const er = docSnap.data();
-      
-      // Lấy rule details
-      const ruleDoc = await getDoc(doc(db, 'rules', er.ruleId));
-      const rule = ruleDoc.data();
-      
-      // Lấy group details
-      const groupDoc = await getDoc(doc(db, 'ruleGroups', rule.groupId));
-      const group = groupDoc.data();
-      
-      eventRules.push({
-        id: docSnap.id,
-        ...er,
-        rule: rule,
-        group: group
-      });
-    }
-    
-    return { success: true, data: eventRules };
-  } catch (error) {
-    console.error('Error getting event rules:', error);
-    return { success: false, error: error.message };
-  }
-};
+export async function getEventById(id) {
+const ref = doc(db, 'events', id);
+const s = await getDoc(ref);
+if (!s.exists()) return null;
+return { id: s.id, ...s.data() };
+}
 
-// ===== TRACK LOGS =====
-export const getTrackLogs = async (userId, startDate, endDate) => {
-  try {
-    const q = query(
-      collection(db, 'trackLogs'),
-      where('userId', '==', userId),
-      where('date', '>=', startDate),
-      where('date', '<=', endDate),
-      orderBy('date', 'desc')
-    );
-    const querySnapshot = await getDocs(q);
-    
-    const logs = [];
-    querySnapshot.forEach((doc) => {
-      logs.push({ id: doc.id, ...doc.data() });
-    });
-    
-    return { success: true, data: logs };
-  } catch (error) {
-    console.error('Error getting track logs:', error);
-    return { success: false, error: error.message };
-  }
-};
+export async function getRules(id, data) {
+const ref = doc(db, 'events', id);
+const s = await getDoc(ref);
+if (!s.exists()) return null;
+return { id: s.id, ...s.data() };
+}
+export async function getRuleGroups(id, data) {
+const ref = doc(db, 'events', id);
+await updateDoc(ref, data);
+}
+export async function saveTrackLog(id, data) {
+const ref = doc(db, 'events', id);
+await updateDoc(ref, data);
+}
