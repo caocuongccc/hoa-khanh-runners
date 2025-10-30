@@ -9,6 +9,7 @@ import MemberDashboard from './components/Member/MemberDashboard';
 import AdminDashboard from './components/Admin/AdminDashboard';
 import StravaCallback from './components/StravaCallback';
 import SeedDataPage from './components/SeedData';
+import SetupAdmin from './components/Admin/SetupAdmin';
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -43,7 +44,8 @@ function App() {
       <Routes>
         {/* Seed Data Page - Không cần login */}
         <Route path="/seed-data" element={<SeedDataPage />} />
-        
+        {/* Thêm route (trong <Routes>) */}
+        <Route path="/setup-admin" element={<SetupAdmin />} />
         {/* Strava Callback */}
         <Route path="/strava/callback" element={<StravaCallback currentUser={currentUser} />} />
         

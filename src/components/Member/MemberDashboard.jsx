@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Calendar, Users, Trophy, RefreshCw, Link2, Check, LogOut, Activity, Home, ChevronRight, Award, Heart, Share2 } from 'lucide-react';
 import { getEvents } from '../../services/firebase-service';
 import { getStravaAuthUrl } from '../../services/strava-service';
-import { syncUserActivities } from '../../services/strava-sync';
+// import { syncUserActivities } from '../../services/strava-sync';
 import { logoutUser } from '../../services/auth-service';
+import { registerForEvent, syncUserActivities, validateAndCalculatePoints, isUserRegistered, getLeaderboard, getUserActivitiesForEvent} from '../../services/member-service';
 
 const MemberDashboard = ({ user, onLogout }) => {
   const [currentPage, setCurrentPage] = useState('home');
@@ -12,18 +13,55 @@ const MemberDashboard = ({ user, onLogout }) => {
   const [myActivities, setMyActivities] = useState([]);
   const [loading, setLoading] = useState(false);
   const [syncStatus, setSyncStatus] = useState({ syncing: false, message: '' });
-
   const stravaConnected = user?.stravaIntegration?.isConnected || false;
+  const [registeredEvents, setRegisteredEvents] = useState([]);
+  const [leaderboard, setLeaderboard] = useState([]);
 
   useEffect(() => {
     loadEvents();
   }, []);
 
+  useEffect(() => {
+    const checkRegistrations = async () => {
+      if (!user || events.length === 0) return;
+      
+      const registrations = await Promise.all(
+        events.map(async (event) => ({
+          eventId: event.id,
+          isRegistered: await isUserRegistered(event.id, user.uid)
+        }))
+      );
+      
+      setRegisteredEvents(registrations);
+    };
+    
+    checkRegistrations();
+  }, [events, user]);
+
   const loadEvents = async () => {
+      setLoading(true);
+      const result = await getEvents();
+      if (result.success) {
+        setEvents(result.data.filter(e => e.status === 'active'));
+      }
+      setLoading(false);
+    };
+
+    const handleRegisterEvent = async (eventId) => {
+    if (!stravaConnected) {
+      alert('Vui lòng kết nối Strava trước!');
+      return;
+    }
+
     setLoading(true);
-    const result = await getEvents();
+    const result = await registerForEvent(eventId, user.uid, user.name);
+    
     if (result.success) {
-      setEvents(result.data.filter(e => e.status === 'active'));
+      alert('✅ Đăng ký thành công!');
+      // Reload events
+      loadEvents();
+    } else {
+      alert('❌ ' + result.error);
     }
     setLoading(false);
   };
@@ -33,35 +71,48 @@ const MemberDashboard = ({ user, onLogout }) => {
     window.location.href = authUrl;
   };
 
-  const handleSyncActivities = async () => {
-    if (!stravaConnected) {
-      alert('Vui lòng kết nối Strava trước!');
-      return;
-    }
+  const handleSyncActivities = async (eventId) => {
+  if (!stravaConnected) {
+    alert('Vui lòng kết nối Strava trước!');
+    return;
+  }
 
-    setSyncStatus({ syncing: true, message: 'Đang đồng bộ...' });
+  setSyncStatus({ syncing: true, message: 'Đang đồng bộ...' });
+  
+  // Get event dates
+  const event = events.find(e => e.id === eventId);
+  
+  // Sync activities
+  const syncResult = await syncUserActivities(
+    user,
+    event.startDate,
+    event.endDate
+  );
+  
+  if (syncResult.success) {
+    setSyncStatus({ 
+      syncing: false, 
+      message: `✅ Đồng bộ ${syncResult.saved} hoạt động mới, ${syncResult.updated} cập nhật` 
+    });
     
-    const result = await syncUserActivities(
-      user,
-      '2024-01-01',
-      new Date().toISOString().split('T')[0]
-    );
+    // Validate and calculate points
+    const validateResult = await validateAndCalculatePoints(eventId, user.uid);
     
-    if (result.success) {
+    if (validateResult.success) {
       setSyncStatus({ 
         syncing: false, 
-        message: `✅ Đồng bộ thành công ${result.saved}/${result.total} hoạt động!` 
-      });
-      // Reload activities
-    } else {
-      setSyncStatus({ 
-        syncing: false, 
-        message: `❌ Lỗi: ${result.error}` 
+        message: `✅ Tổng điểm: ${validateResult.totalPoints}, Hợp lệ: ${validateResult.validActivities}/${validateResult.totalActivities}` 
       });
     }
+  } else {
+    setSyncStatus({ 
+      syncing: false, 
+      message: `❌ Lỗi: ${syncResult.error}` 
+    });
+  }
 
-    setTimeout(() => setSyncStatus({ syncing: false, message: '' }), 5000);
-  };
+  setTimeout(() => setSyncStatus({ syncing: false, message: '' }), 5000);
+};
 
   const handleLogout = async () => {
     await logoutUser();
@@ -412,6 +463,34 @@ const MemberDashboard = ({ user, onLogout }) => {
       </div>
     );
   };
+
+  const EventCard = ({ event }) => {
+  const registration = registeredEvents.find(r => r.eventId === event.id);
+  const isRegistered = registration?.isRegistered || false;
+
+  return (
+    <div className="bg-white rounded-xl shadow-md p-5">
+      <h3>{event.name}</h3>
+      {/* ... other content ... */}
+      
+      {isRegistered ? (
+        <button
+          onClick={() => handleSyncActivities(event.id)}
+          className="w-full bg-green-600 text-white py-2 rounded-lg"
+        >
+          ✓ Đã đăng ký - Đồng bộ hoạt động
+        </button>
+      ) : (
+        <button
+          onClick={() => handleRegisterEvent(event.id)}
+          className="w-full bg-blue-600 text-white py-2 rounded-lg"
+        >
+          Đăng ký tham gia
+        </button>
+      )}
+    </div>
+  );
+};
 
   return (
     <div className="min-h-screen bg-gray-50">

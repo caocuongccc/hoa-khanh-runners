@@ -44,6 +44,8 @@ const LoginPage = ({ onLoginSuccess }) => {
   const handleDemoLogin = async (email, password) => {
     setLoading(true);
     setError('');
+    console.log(email);
+    console.log(password);
     const result = await loginUser(email, password);
     if (!result.success) {
       setError(result.error);

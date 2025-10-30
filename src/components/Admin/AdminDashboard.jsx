@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Calendar, Plus, Users, Settings, LogOut, Edit, Trash2, Eye } from 'lucide-react';
 import { getEvents, createEvent, getRules, getRuleGroups } from '../../services/firebase-service';
 import { logoutUser } from '../../services/auth-service';
+import CreateEventModal from './CreateEventModal';
 
 const AdminDashboard = ({ user, onLogout }) => {
   const [currentTab, setCurrentTab] = useState('events');
@@ -237,134 +238,15 @@ const AdminDashboard = ({ user, onLogout }) => {
     </div>
   );
 
-  // Create Event Modal
-  const CreateEventModal = () => {
-    const [formData, setFormData] = useState({
-      name: '',
-      description: '',
-      startDate: '',
-      endDate: '',
-      media: {
-        coverImage: ''
-      }
-    });
-
-    const handleSubmit = (e) => {
-      e.preventDefault();
-      handleCreateEvent(formData);
-    };
-
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-        <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-          <div className="p-6">
-            <h2 className="text-2xl font-bold mb-4">Tạo Sự kiện Mới</h2>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Tên sự kiện *
-                </label>
-                <input
-                  type="text"
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  value={formData.name}
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Mô tả
-                </label>
-                <textarea
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  rows="3"
-                  value={formData.description}
-                  onChange={(e) => setFormData({...formData, description: e.target.value})}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Ngày bắt đầu *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    value={formData.startDate}
-                    onChange={(e) => setFormData({...formData, startDate: e.target.value})}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Ngày kết thúc *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    value={formData.endDate}
-                    onChange={(e) => setFormData({...formData, endDate: e.target.value})}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  URL ảnh bìa
-                </label>
-                <input
-                  type="url"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  value={formData.media.coverImage}
-                  onChange={(e) => setFormData({
-                    ...formData, 
-                    media: {...formData.media, coverImage: e.target.value}
-                  })}
-                  placeholder="https://..."
-                />
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  onClick={handleSubmit}
-                  className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700"
-                >
-                  Tạo sự kiện
-                </button>
-                <button
-                  onClick={() => setShowCreateEvent(false)}
-                  className="flex-1 bg-gray-200 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-300"
-                >
-                  Hủy
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <Header />
-      <div className="flex">
-        <Sidebar />
-        <main className="flex-1 p-8">
-          {currentTab === 'events' && <EventsManagement />}
-          {currentTab === 'rules' && <RulesManagement />}
-          {currentTab === 'users' && <UsersManagement />}
-        </main>
-      </div>
-
-      {showCreateEvent && <CreateEventModal />}
-    </div>
-  );
+  {showCreateEvent && (
+  <CreateEventModal
+    onClose={() => setShowCreateEvent(false)}
+    onSuccess={() => {
+      setShowCreateEvent(false);
+      loadData(); // Reload events
+    }}
+  />
+)}
 };
 
 export default AdminDashboard;
