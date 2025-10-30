@@ -30,6 +30,7 @@ export async function getEvents() {
     const q = query(collection(db, 'events'));
     const snap = await getDocs(q);
     const events = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    console.log(events);
     return { success: true, data: events };
   } catch (error) {
     console.error('Error getting events:', error);

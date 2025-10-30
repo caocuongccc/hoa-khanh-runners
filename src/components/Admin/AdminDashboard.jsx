@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Plus, Users, Settings, LogOut, Edit, Trash2, Eye, AlertCircle } from 'lucide-react';
+import { Calendar, Plus, Users, Settings, LogOut, Edit, Trash2, Eye, AlertCircle, X } from 'lucide-react';
 import { getEvents, createEvent, getRules, getRuleGroups } from '../../services/firebase-service';
 import { logoutUser } from '../../services/auth-service';
 
@@ -10,6 +10,9 @@ const AdminDashboard = ({ user, onLogout }) => {
   const [ruleGroups, setRuleGroups] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showCreateEvent, setShowCreateEvent] = useState(false);
+  const [showEventDetail, setShowEventDetail] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [showCreateRule, setShowCreateRule] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -49,7 +52,6 @@ const AdminDashboard = ({ user, onLogout }) => {
         console.error('Groups error:', groupsResult.error);
       }
 
-      // Kiểm tra nếu chưa có data
       if (rulesResult.data?.length === 0 && groupsResult.data?.length === 0) {
         setError('Chưa có dữ liệu Rules. Vui lòng chạy Seed Data trước.');
       }
@@ -75,6 +77,11 @@ const AdminDashboard = ({ user, onLogout }) => {
     } else {
       alert('Lỗi: ' + result.error);
     }
+  };
+
+  const handleViewEvent = (event) => {
+    setSelectedEvent(event);
+    setShowEventDetail(true);
   };
 
   // Header
@@ -223,13 +230,17 @@ const AdminDashboard = ({ user, onLogout }) => {
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
-                      <button className="text-blue-600 hover:text-blue-800 p-1">
+                      <button 
+                        onClick={() => handleViewEvent(event)}
+                        className="text-blue-600 hover:text-blue-800 p-1"
+                        title="Xem chi tiết"
+                      >
                         <Eye className="w-4 h-4" />
                       </button>
-                      <button className="text-green-600 hover:text-green-800 p-1">
+                      <button className="text-green-600 hover:text-green-800 p-1" title="Sửa">
                         <Edit className="w-4 h-4" />
                       </button>
-                      <button className="text-red-600 hover:text-red-800 p-1">
+                      <button className="text-red-600 hover:text-red-800 p-1" title="Xóa">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -243,12 +254,130 @@ const AdminDashboard = ({ user, onLogout }) => {
     </div>
   );
 
+  // Event Detail Modal
+  const EventDetailModal = () => {
+    if (!selectedEvent) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
+            <h2 className="text-2xl font-bold text-gray-900">Chi tiết sự kiện</h2>
+            <button
+              onClick={() => setShowEventDetail(false)}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+
+          <div className="p-6 space-y-6">
+            {/* Cover Image */}
+            {selectedEvent.media?.coverImage && (
+              <div className="relative h-64 rounded-lg overflow-hidden">
+                <img 
+                  src={selectedEvent.media.coverImage} 
+                  alt={selectedEvent.name}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            )}
+
+            {/* Basic Info */}
+            <div className="grid md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tên sự kiện</label>
+                <p className="text-lg font-semibold text-gray-900">{selectedEvent.name}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Trạng thái</label>
+                <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${
+                  selectedEvent.status === 'active' ? 'bg-green-100 text-green-800' : 
+                  selectedEvent.status === 'completed' ? 'bg-gray-100 text-gray-800' :
+                  'bg-yellow-100 text-yellow-800'
+                }`}>
+                  {selectedEvent.status}
+                </span>
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ngày bắt đầu</label>
+                <p className="text-gray-900">{selectedEvent.startDate}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ngày kết thúc</label>
+                <p className="text-gray-900">{selectedEvent.endDate}</p>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Mô tả</label>
+              <p className="text-gray-700 leading-relaxed">{selectedEvent.description || 'Chưa có mô tả'}</p>
+            </div>
+
+            {/* Registration Info */}
+            <div className="bg-blue-50 rounded-lg p-4">
+              <h3 className="font-semibold text-blue-900 mb-3">Thông tin đăng ký</h3>
+              <div className="grid md:grid-cols-3 gap-4">
+                <div>
+                  <p className="text-sm text-blue-700">Người tham gia</p>
+                  <p className="text-2xl font-bold text-blue-900">
+                    {selectedEvent.registration?.currentParticipants || 0}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-blue-700">Giới hạn</p>
+                  <p className="text-2xl font-bold text-blue-900">
+                    {selectedEvent.registration?.maxParticipants || 'Không giới hạn'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-blue-700">Đăng ký</p>
+                  <p className="text-lg font-bold text-blue-900">
+                    {selectedEvent.registration?.isOpen ? 'Đang mở' : 'Đã đóng'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 pt-4 border-t">
+              <button
+                className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2"
+              >
+                <Edit className="w-4 h-4" />
+                Chỉnh sửa
+              </button>
+              <button
+                className="flex-1 bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 flex items-center justify-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                Xóa sự kiện
+              </button>
+              <button
+                onClick={() => setShowEventDetail(false)}
+                className="flex-1 bg-gray-200 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-300"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // Rules Management
   const RulesManagement = () => (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-900">Thư viện Rules</h2>
-        <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2">
+        <button 
+          onClick={() => setShowCreateRule(true)}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+        >
           <Plus className="w-5 h-5" />
           Tạo rule mới
         </button>
@@ -305,6 +434,36 @@ const AdminDashboard = ({ user, onLogout }) => {
     </div>
   );
 
+  // Create Rule Modal (Placeholder)
+  const CreateRuleModal = () => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-2xl font-bold">Tạo Rule Mới</h2>
+          <button
+            onClick={() => setShowCreateRule(false)}
+            className="text-gray-400 hover:text-gray-600"
+          >
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+        <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4">
+          <p className="text-sm text-yellow-800">
+            Tính năng đang được phát triển. Hiện tại bạn có thể sử dụng các rules có sẵn từ Seed Data.
+          </p>
+        </div>
+        <div className="mt-4 flex justify-end">
+          <button
+            onClick={() => setShowCreateRule(false)}
+            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+          >
+            Đóng
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   // Users Management
   const UsersManagement = () => (
     <div className="space-y-6">
@@ -322,8 +481,14 @@ const AdminDashboard = ({ user, onLogout }) => {
       description: '',
       startDate: '',
       endDate: '',
+      status: 'active',
       media: {
         coverImage: ''
+      },
+      registration: {
+        isOpen: true,
+        maxParticipants: null,
+        currentParticipants: 0
       }
     });
 
@@ -338,7 +503,7 @@ const AdminDashboard = ({ user, onLogout }) => {
           <div className="p-6">
             <h2 className="text-2xl font-bold mb-4">Tạo Sự kiện Mới</h2>
             
-            <div className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Tên sự kiện *
@@ -346,9 +511,10 @@ const AdminDashboard = ({ user, onLogout }) => {
                 <input
                   type="text"
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={formData.name}
                   onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  placeholder="VD: Challenge Chạy Đón Tết 2025"
                 />
               </div>
 
@@ -357,10 +523,11 @@ const AdminDashboard = ({ user, onLogout }) => {
                   Mô tả
                 </label>
                 <textarea
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   rows="3"
                   value={formData.description}
                   onChange={(e) => setFormData({...formData, description: e.target.value})}
+                  placeholder="Mô tả chi tiết về sự kiện..."
                 />
               </div>
 
@@ -372,7 +539,7 @@ const AdminDashboard = ({ user, onLogout }) => {
                   <input
                     type="date"
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={formData.startDate}
                     onChange={(e) => setFormData({...formData, startDate: e.target.value})}
                   />
@@ -384,7 +551,7 @@ const AdminDashboard = ({ user, onLogout }) => {
                   <input
                     type="date"
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={formData.endDate}
                     onChange={(e) => setFormData({...formData, endDate: e.target.value})}
                   />
@@ -397,31 +564,32 @@ const AdminDashboard = ({ user, onLogout }) => {
                 </label>
                 <input
                   type="url"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={formData.media.coverImage}
                   onChange={(e) => setFormData({
                     ...formData, 
                     media: {...formData.media, coverImage: e.target.value}
                   })}
-                  placeholder="https://..."
+                  placeholder="https://example.com/image.jpg"
                 />
               </div>
 
               <div className="flex gap-3 pt-4">
                 <button
-                  onClick={handleSubmit}
-                  className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700"
+                  type="submit"
+                  className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 font-medium"
                 >
                   Tạo sự kiện
                 </button>
                 <button
+                  type="button"
                   onClick={() => setShowCreateEvent(false)}
-                  className="flex-1 bg-gray-200 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-300"
+                  className="flex-1 bg-gray-200 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-300 font-medium"
                 >
                   Hủy
                 </button>
               </div>
-            </div>
+            </form>
           </div>
         </div>
       </div>
@@ -441,6 +609,8 @@ const AdminDashboard = ({ user, onLogout }) => {
       </div>
 
       {showCreateEvent && <CreateEventModal />}
+      {showEventDetail && <EventDetailModal />}
+      {showCreateRule && <CreateRuleModal />}
     </div>
   );
 };

@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Users, Trophy, RefreshCw, Link2, Check, LogOut, Activity, Home, ChevronRight, Award, Heart, Share2 } from 'lucide-react';
+import { Calendar, Users, Trophy, RefreshCw, Link2, Check, LogOut, Activity, Home, ChevronRight, Award, Heart, Share2, X } from 'lucide-react';
 import { getEvents } from '../../services/firebase-service';
 import { getStravaAuthUrl } from '../../services/strava-service';
-// import { syncUserActivities } from '../../services/strava-sync';
+import { syncUserActivities } from '../../services/strava-sync';
 import { logoutUser } from '../../services/auth-service';
-import { registerForEvent, syncUserActivities, validateAndCalculatePoints, isUserRegistered, getLeaderboard, getUserActivitiesForEvent} from '../../services/member-service';
 
 const MemberDashboard = ({ user, onLogout }) => {
   const [currentPage, setCurrentPage] = useState('home');
@@ -13,55 +12,25 @@ const MemberDashboard = ({ user, onLogout }) => {
   const [myActivities, setMyActivities] = useState([]);
   const [loading, setLoading] = useState(false);
   const [syncStatus, setSyncStatus] = useState({ syncing: false, message: '' });
+
   const stravaConnected = user?.stravaIntegration?.isConnected || false;
-  const [registeredEvents, setRegisteredEvents] = useState([]);
-  const [leaderboard, setLeaderboard] = useState([]);
 
   useEffect(() => {
     loadEvents();
   }, []);
 
-  useEffect(() => {
-    const checkRegistrations = async () => {
-      if (!user || events.length === 0) return;
-      
-      const registrations = await Promise.all(
-        events.map(async (event) => ({
-          eventId: event.id,
-          isRegistered: await isUserRegistered(event.id, user.uid)
-        }))
-      );
-      
-      setRegisteredEvents(registrations);
-    };
-    
-    checkRegistrations();
-  }, [events, user]);
-
   const loadEvents = async () => {
-      setLoading(true);
-      const result = await getEvents();
-      if (result.success) {
-        setEvents(result.data.filter(e => e.status === 'active'));
-      }
-      setLoading(false);
-    };
-
-    const handleRegisterEvent = async (eventId) => {
-    if (!stravaConnected) {
-      alert('Vui lòng kết nối Strava trước!');
-      return;
-    }
-
     setLoading(true);
-    const result = await registerForEvent(eventId, user.uid, user.name);
-    
+    const result = await getEvents();
     if (result.success) {
-      alert('✅ Đăng ký thành công!');
-      // Reload events
-      loadEvents();
-    } else {
-      alert('❌ ' + result.error);
+      // Lọc các events active và sắp xếp theo ngày tạo mới nhất
+      const activeEvents = result.data
+        //.filter(e => e.status === 'active' || e.status === 'upcoming')
+        .sort((a, b) => {
+          // Sắp xếp theo startDate, mới nhất lên đầu
+          return new Date(b.startDate) - new Date(a.startDate);
+        });
+      setEvents(activeEvents);
     }
     setLoading(false);
   };
@@ -71,48 +40,34 @@ const MemberDashboard = ({ user, onLogout }) => {
     window.location.href = authUrl;
   };
 
-  const handleSyncActivities = async (eventId) => {
-  if (!stravaConnected) {
-    alert('Vui lòng kết nối Strava trước!');
-    return;
-  }
+  const handleSyncActivities = async () => {
+    if (!stravaConnected) {
+      alert('Vui lòng kết nối Strava trước!');
+      return;
+    }
 
-  setSyncStatus({ syncing: true, message: 'Đang đồng bộ...' });
-  
-  // Get event dates
-  const event = events.find(e => e.id === eventId);
-  
-  // Sync activities
-  const syncResult = await syncUserActivities(
-    user,
-    event.startDate,
-    event.endDate
-  );
-  
-  if (syncResult.success) {
-    setSyncStatus({ 
-      syncing: false, 
-      message: `✅ Đồng bộ ${syncResult.saved} hoạt động mới, ${syncResult.updated} cập nhật` 
-    });
+    setSyncStatus({ syncing: true, message: 'Đang đồng bộ...' });
     
-    // Validate and calculate points
-    const validateResult = await validateAndCalculatePoints(eventId, user.uid);
+    const result = await syncUserActivities(
+      user,
+      '2024-01-01',
+      new Date().toISOString().split('T')[0]
+    );
     
-    if (validateResult.success) {
+    if (result.success) {
       setSyncStatus({ 
         syncing: false, 
-        message: `✅ Tổng điểm: ${validateResult.totalPoints}, Hợp lệ: ${validateResult.validActivities}/${validateResult.totalActivities}` 
+        message: `✅ Đồng bộ thành công ${result.saved}/${result.total} hoạt động!` 
+      });
+    } else {
+      setSyncStatus({ 
+        syncing: false, 
+        message: `❌ Lỗi: ${result.error}` 
       });
     }
-  } else {
-    setSyncStatus({ 
-      syncing: false, 
-      message: `❌ Lỗi: ${syncResult.error}` 
-    });
-  }
 
-  setTimeout(() => setSyncStatus({ syncing: false, message: '' }), 5000);
-};
+    setTimeout(() => setSyncStatus({ syncing: false, message: '' }), 5000);
+  };
 
   const handleLogout = async () => {
     await logoutUser();
@@ -284,10 +239,16 @@ const MemberDashboard = ({ user, onLogout }) => {
                 setCurrentPage('event-detail');
               }}>
                 <div className="relative h-48">
-                  <img src={event.media?.coverImage || 'https://images.unsplash.com/photo-1552674605-db6ffd4facb5?w=800'} alt={event.name} className="w-full h-full object-cover" />
+                  <img 
+                    src={event.media?.coverImage || 'https://images.unsplash.com/photo-1552674605-db6ffd4facb5?w=800'} 
+                    alt={event.name} 
+                    className="w-full h-full object-cover" 
+                  />
                   <div className="absolute top-3 right-3">
-                    <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-500 text-white">
-                      Đang diễn ra
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                      event.status === 'active' ? 'bg-green-500 text-white' : 'bg-yellow-500 text-white'
+                    }`}>
+                      {event.status === 'active' ? 'Đang diễn ra' : 'Sắp diễn ra'}
                     </span>
                   </div>
                 </div>
@@ -318,11 +279,31 @@ const MemberDashboard = ({ user, onLogout }) => {
   // Events Page
   const EventsPage = () => (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-gray-900">Tất cả sự kiện</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold text-gray-900">Tất cả sự kiện</h1>
+        <button
+          onClick={loadEvents}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        >
+          <RefreshCw className="w-4 h-4" />
+          Làm mới
+        </button>
+      </div>
       
       {loading ? (
         <div className="text-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+        </div>
+      ) : events.length === 0 ? (
+        <div className="bg-white rounded-xl shadow-md p-12 text-center">
+          <Calendar className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <p className="text-gray-500 mb-2">Chưa có sự kiện nào</p>
+          <button
+            onClick={loadEvents}
+            className="text-blue-600 hover:text-blue-700 font-medium"
+          >
+            Làm mới →
+          </button>
         </div>
       ) : (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -332,7 +313,11 @@ const MemberDashboard = ({ user, onLogout }) => {
               setCurrentPage('event-detail');
             }}>
               <div className="relative h-48">
-                <img src={event.media?.coverImage || 'https://images.unsplash.com/photo-1552674605-db6ffd4facb5?w=800'} alt={event.name} className="w-full h-full object-cover" />
+                <img 
+                  src={event.media?.coverImage || 'https://images.unsplash.com/photo-1552674605-db6ffd4facb5?w=800'} 
+                  alt={event.name} 
+                  className="w-full h-full object-cover" 
+                />
               </div>
               <div className="p-5">
                 <h3 className="font-bold text-gray-900 mb-3 line-clamp-2">{event.name}</h3>
@@ -422,7 +407,11 @@ const MemberDashboard = ({ user, onLogout }) => {
 
         <div className="bg-white rounded-xl shadow-md overflow-hidden">
           <div className="relative h-96">
-            <img src={selectedEvent.media?.coverImage || 'https://images.unsplash.com/photo-1552674605-db6ffd4facb5?w=800'} alt={selectedEvent.name} className="w-full h-full object-cover" />
+            <img 
+              src={selectedEvent.media?.coverImage || 'https://images.unsplash.com/photo-1552674605-db6ffd4facb5?w=800'} 
+              alt={selectedEvent.name} 
+              className="w-full h-full object-cover" 
+            />
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
             <div className="absolute bottom-0 left-0 right-0 p-8 text-white">
               <h1 className="text-4xl font-bold mb-4">{selectedEvent.name}</h1>
@@ -444,7 +433,9 @@ const MemberDashboard = ({ user, onLogout }) => {
           <div className="lg:col-span-2">
             <div className="bg-white rounded-xl shadow-md p-6">
               <h2 className="text-xl font-bold text-gray-900 mb-4">Giới thiệu</h2>
-              <p className="text-gray-700 leading-relaxed">{selectedEvent.description}</p>
+              <p className="text-gray-700 leading-relaxed">
+                {selectedEvent.description || 'Chưa có mô tả chi tiết'}
+              </p>
             </div>
           </div>
 
@@ -463,34 +454,6 @@ const MemberDashboard = ({ user, onLogout }) => {
       </div>
     );
   };
-
-  const EventCard = ({ event }) => {
-  const registration = registeredEvents.find(r => r.eventId === event.id);
-  const isRegistered = registration?.isRegistered || false;
-
-  return (
-    <div className="bg-white rounded-xl shadow-md p-5">
-      <h3>{event.name}</h3>
-      {/* ... other content ... */}
-      
-      {isRegistered ? (
-        <button
-          onClick={() => handleSyncActivities(event.id)}
-          className="w-full bg-green-600 text-white py-2 rounded-lg"
-        >
-          ✓ Đã đăng ký - Đồng bộ hoạt động
-        </button>
-      ) : (
-        <button
-          onClick={() => handleRegisterEvent(event.id)}
-          className="w-full bg-blue-600 text-white py-2 rounded-lg"
-        >
-          Đăng ký tham gia
-        </button>
-      )}
-    </div>
-  );
-};
 
   return (
     <div className="min-h-screen bg-gray-50">
