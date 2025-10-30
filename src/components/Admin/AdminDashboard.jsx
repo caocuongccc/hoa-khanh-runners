@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Plus, Users, Settings, LogOut, Edit, Trash2, Eye } from 'lucide-react';
+import { Calendar, Plus, Users, Settings, LogOut, Edit, Trash2, Eye, AlertCircle } from 'lucide-react';
 import { getEvents, createEvent, getRules, getRuleGroups } from '../../services/firebase-service';
 import { logoutUser } from '../../services/auth-service';
-import CreateEventModal from './CreateEventModal';
 
 const AdminDashboard = ({ user, onLogout }) => {
   const [currentTab, setCurrentTab] = useState('events');
@@ -11,6 +10,7 @@ const AdminDashboard = ({ user, onLogout }) => {
   const [ruleGroups, setRuleGroups] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showCreateEvent, setShowCreateEvent] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     loadData();
@@ -18,16 +18,47 @@ const AdminDashboard = ({ user, onLogout }) => {
 
   const loadData = async () => {
     setLoading(true);
-    const [eventsResult, rulesResult, groupsResult] = await Promise.all([
-      getEvents(),
-      getRules(),
-      getRuleGroups()
-    ]);
+    setError('');
+    
+    try {
+      const [eventsResult, rulesResult, groupsResult] = await Promise.all([
+        getEvents(),
+        getRules(),
+        getRuleGroups()
+      ]);
 
-    if (eventsResult.success) setEvents(eventsResult.data);
-    if (rulesResult.success) setRules(rulesResult.data);
-    if (groupsResult.success) setRuleGroups(groupsResult.data);
-    setLoading(false);
+      console.log('Events result:', eventsResult);
+      console.log('Rules result:', rulesResult);
+      console.log('Groups result:', groupsResult);
+
+      if (eventsResult.success) {
+        setEvents(eventsResult.data || []);
+      } else {
+        console.error('Events error:', eventsResult.error);
+      }
+
+      if (rulesResult.success) {
+        setRules(rulesResult.data || []);
+      } else {
+        console.error('Rules error:', rulesResult.error);
+      }
+
+      if (groupsResult.success) {
+        setRuleGroups(groupsResult.data || []);
+      } else {
+        console.error('Groups error:', groupsResult.error);
+      }
+
+      // Kiểm tra nếu chưa có data
+      if (rulesResult.data?.length === 0 && groupsResult.data?.length === 0) {
+        setError('Chưa có dữ liệu Rules. Vui lòng chạy Seed Data trước.');
+      }
+    } catch (err) {
+      console.error('Load data error:', err);
+      setError('Lỗi khi tải dữ liệu: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -109,6 +140,25 @@ const AdminDashboard = ({ user, onLogout }) => {
     </aside>
   );
 
+  // Error Message Component
+  const ErrorMessage = () => (
+    <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 mb-6">
+      <div className="flex items-start">
+        <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5 mr-3 flex-shrink-0" />
+        <div>
+          <p className="text-sm font-medium text-yellow-900">Chưa có dữ liệu</p>
+          <p className="text-sm text-yellow-800 mt-1">{error}</p>
+          <a 
+            href="/seed-data" 
+            className="inline-block mt-3 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 text-sm font-medium"
+          >
+            Đi tới Seed Data →
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+
   // Events Management
   const EventsManagement = () => (
     <div className="space-y-6">
@@ -126,6 +176,17 @@ const AdminDashboard = ({ user, onLogout }) => {
       {loading ? (
         <div className="text-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+        </div>
+      ) : events.length === 0 ? (
+        <div className="bg-white rounded-lg shadow p-12 text-center">
+          <Calendar className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <p className="text-gray-500 mb-2">Chưa có sự kiện nào</p>
+          <button 
+            onClick={() => setShowCreateEvent(true)}
+            className="text-blue-600 hover:text-blue-700 font-medium"
+          >
+            Tạo sự kiện đầu tiên →
+          </button>
         </div>
       ) : (
         <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -193,9 +254,22 @@ const AdminDashboard = ({ user, onLogout }) => {
         </button>
       </div>
 
+      {error && <ErrorMessage />}
+
       {loading ? (
         <div className="text-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+        </div>
+      ) : ruleGroups.length === 0 ? (
+        <div className="bg-white rounded-lg shadow p-12 text-center">
+          <Settings className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <p className="text-gray-500 mb-2">Chưa có Rule Groups</p>
+          <a 
+            href="/seed-data"
+            className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Chạy Seed Data →
+          </a>
         </div>
       ) : (
         ruleGroups.map(group => (
@@ -222,6 +296,9 @@ const AdminDashboard = ({ user, onLogout }) => {
                   </div>
                 ))}
             </div>
+            {rules.filter(r => r.groupId === group.id).length === 0 && (
+              <p className="text-gray-500 text-sm">Chưa có rule nào trong nhóm này</p>
+            )}
           </div>
         ))
       )}
@@ -238,15 +315,134 @@ const AdminDashboard = ({ user, onLogout }) => {
     </div>
   );
 
-  {showCreateEvent && (
-  <CreateEventModal
-    onClose={() => setShowCreateEvent(false)}
-    onSuccess={() => {
-      setShowCreateEvent(false);
-      loadData(); // Reload events
-    }}
-  />
-)}
+  // Create Event Modal
+  const CreateEventModal = () => {
+    const [formData, setFormData] = useState({
+      name: '',
+      description: '',
+      startDate: '',
+      endDate: '',
+      media: {
+        coverImage: ''
+      }
+    });
+
+    const handleSubmit = (e) => {
+      e.preventDefault();
+      handleCreateEvent(formData);
+    };
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="p-6">
+            <h2 className="text-2xl font-bold mb-4">Tạo Sự kiện Mới</h2>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Tên sự kiện *
+                </label>
+                <input
+                  type="text"
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Mô tả
+                </label>
+                <textarea
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  rows="3"
+                  value={formData.description}
+                  onChange={(e) => setFormData({...formData, description: e.target.value})}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Ngày bắt đầu *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    value={formData.startDate}
+                    onChange={(e) => setFormData({...formData, startDate: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Ngày kết thúc *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    value={formData.endDate}
+                    onChange={(e) => setFormData({...formData, endDate: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  URL ảnh bìa
+                </label>
+                <input
+                  type="url"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  value={formData.media.coverImage}
+                  onChange={(e) => setFormData({
+                    ...formData, 
+                    media: {...formData.media, coverImage: e.target.value}
+                  })}
+                  placeholder="https://..."
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={handleSubmit}
+                  className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700"
+                >
+                  Tạo sự kiện
+                </button>
+                <button
+                  onClick={() => setShowCreateEvent(false)}
+                  className="flex-1 bg-gray-200 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-300"
+                >
+                  Hủy
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <Header />
+      <div className="flex">
+        <Sidebar />
+        <main className="flex-1 p-8">
+          {currentTab === 'events' && <EventsManagement />}
+          {currentTab === 'rules' && <RulesManagement />}
+          {currentTab === 'users' && <UsersManagement />}
+        </main>
+      </div>
+
+      {showCreateEvent && <CreateEventModal />}
+    </div>
+  );
 };
 
 export default AdminDashboard;
