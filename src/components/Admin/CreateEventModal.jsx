@@ -3,13 +3,13 @@
 import React, { useState, useEffect } from 'react';
 import { X, Plus, Check, Upload, Image as ImageIcon } from 'lucide-react';
 import { createEvent, getRules, getRuleGroups } from '../../services/firebase-service';
-import { doc, writeBatch, Timestamp } from 'firebase/firestore';
+import { doc, writeBatch, Timestamp, collection, updateDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../../services/firebase';
 
 const CreateEventModal = ({ onClose, onSuccess }) => {
-  const [step, setStep] = useState(1); // 1: Basic Info, 2: Select Rules, 3: Review
+  const [step, setStep] = useState(1); // 1: Basic Info, 2: Teams, 3: Select Rules, 4: Review
   const [loading, setLoading] = useState(false);
   const [ruleGroups, setRuleGroups] = useState([]);
   const [rules, setRules] = useState([]);
@@ -22,12 +22,18 @@ const CreateEventModal = ({ onClose, onSuccess }) => {
     description: '',
     startDate: '',
     endDate: '',
+    status: 'created',
+    numTeams: 4,
+    teamCapacity: 50,
+      teams: [], // ← THÊM DÒNG NÀY
     media: {
       coverImage: ''
     },
     registration: {
       isOpen: true,
-      maxParticipants: null
+      maxParticipants: null,
+      currentParticipants: 0
+
     }
   });
 
@@ -100,7 +106,7 @@ const CreateEventModal = ({ onClose, onSuccess }) => {
   };
 
   const handleSubmit = async () => {
-    if (step < 3) {
+    if (step < 4) {
       setStep(step + 1);
       return;
     }
@@ -274,7 +280,114 @@ const CreateEventModal = ({ onClose, onSuccess }) => {
       </div>
     </div>
   );
+// Step 2: Teams Configuration
+const TeamsStep = () => {
+  // Generate teams khi numTeams thay đổi
+  useEffect(() => {
+    const newTeams = [];
+    for (let i = 1; i <= formData.numTeams; i++) {
+      const existingTeam = formData.teams[i - 1];
+      newTeams.push(existingTeam || {
+        id: `team_${i}`,
+        name: `Team ${i}`,
+        members: [],
+        capacity: parseInt(formData.teamCapacity),
+        currentMembers: 0
+      });
+    }
+    setFormData(prev => ({ ...prev, teams: newTeams }));
+  }, [formData.numTeams, formData.teamCapacity]);
 
+  const updateTeamName = (index, name) => {
+    const newTeams = [...formData.teams];
+    newTeams[index] = { ...newTeams[index], name };
+    setFormData({ ...formData, teams: newTeams });
+  };
+
+  const updateTeamCapacity = (index, capacity) => {
+    const newTeams = [...formData.teams];
+    newTeams[index] = { ...newTeams[index], capacity: parseInt(capacity) };
+    setFormData({ ...formData, teams: newTeams });
+  };
+
+  return (
+    <div className="space-y-4">
+      <h3 className="text-lg font-semibold text-gray-900">Cấu hình Teams</h3>
+      <p className="text-sm text-gray-600">
+        Thiết lập số lượng teams và tùy chỉnh tên, số người cho từng team
+      </p>
+
+      <div className="grid grid-cols-2 gap-4 mb-6">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Số lượng Teams <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="number"
+            min="1"
+            max="20"
+            required
+            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+            value={formData.numTeams}
+            onChange={(e) => setFormData({...formData, numTeams: parseInt(e.target.value)})}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Số người/Team (mặc định) <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="number"
+            min="1"
+            required
+            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+            value={formData.teamCapacity}
+            onChange={(e) => setFormData({...formData, teamCapacity: parseInt(e.target.value)})}
+          />
+        </div>
+      </div>
+
+      <div className="space-y-3 max-h-96 overflow-y-auto">
+        {formData.teams.map((team, index) => (
+          <div key={team.id} className="border border-gray-200 rounded-lg p-4 bg-white">
+            <div className="grid grid-cols-3 gap-4">
+              <div className="col-span-2">
+                <label className="block text-xs text-gray-600 mb-1">
+                  Tên Team {index + 1}
+                </label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  value={team.name}
+                  onChange={(e) => updateTeamName(index, e.target.value)}
+                  placeholder={`Team ${index + 1}`}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">
+                  Số người tối đa
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  value={team.capacity}
+                  onChange={(e) => updateTeamCapacity(index, e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+        <p className="text-sm text-blue-800">
+          ✓ Đã cấu hình <strong>{formData.teams.length}</strong> teams với tổng <strong>{formData.teams.reduce((sum, t) => sum + t.capacity, 0)}</strong> chỗ
+        </p>
+      </div>
+    </div>
+  );
+};
   // Step 2: Select Rules
   const SelectRulesStep = () => (
     <div className="space-y-4">
@@ -386,6 +499,17 @@ const CreateEventModal = ({ onClose, onSuccess }) => {
           <p className="text-sm text-gray-600">Số lượng rules</p>
           <p className="font-semibold">{selectedRules.length} rules</p>
         </div>
+        <div>
+  <p className="text-sm text-gray-600">Số teams</p>
+  <p className="font-semibold">{formData.teams.length} teams</p>
+  <div className="mt-2 space-y-1">
+    {formData.teams.map((team, idx) => (
+      <div key={team.id} className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded">
+        {team.name}: {team.capacity} người
+      </div>
+    ))}
+  </div>
+</div>
         {imagePreview && (
           <div>
             <p className="text-sm text-gray-600 mb-2">Ảnh bìa</p>
@@ -408,7 +532,22 @@ const CreateEventModal = ({ onClose, onSuccess }) => {
         <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold text-gray-900">Tạo Sự Kiện Mới</h2>
-            <p className="text-sm text-gray-600 mt-1">Bước {step}/3</p>
+            
+<div className="w-full mb-3">
+  <div className="flex items-center justify-between mb-2">
+    <div className="flex items-center gap-3">
+      <div className={`px-3 py-1 rounded-full text-sm font-medium ${step===1 ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>1</div>
+      <div className={`px-3 py-1 rounded-full text-sm font-medium ${step===2 ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>2</div>
+      <div className={`px-3 py-1 rounded-full text-sm font-medium ${step===3 ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>3</div>
+      <div className="text-sm text-gray-600 ml-3">Bước {step} trên 3</div>
+    </div>
+    <div className="text-sm text-gray-500"> {step === 1 ? 'Thông tin' : step === 2 ? 'Chọn rules' : 'Xác nhận'} </div>
+  </div>
+  <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden">
+    <div className="h-2 rounded-full" style={{ width: `${(step/3)*100}%`, backgroundColor: '#2563eb' }}></div>
+  </div>
+</div>
+
           </div>
           <button
             onClick={onClose}
@@ -420,34 +559,36 @@ const CreateEventModal = ({ onClose, onSuccess }) => {
 
         <div className="p-6">
           {/* Progress Steps */}
-          <div className="flex items-center justify-between mb-8">
-            {[
-              { num: 1, label: 'Thông tin' },
-              { num: 2, label: 'Chọn Rules' },
-              { num: 3, label: 'Xem lại' }
-            ].map((s, idx) => (
-              <React.Fragment key={s.num}>
-                <div className="flex flex-col items-center">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
-                    step >= s.num ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
-                  }`}>
-                    {step > s.num ? <Check className="w-5 h-5" /> : s.num}
-                  </div>
-                  <p className="text-xs mt-2 text-gray-600">{s.label}</p>
-                </div>
-                {idx < 2 && (
-                  <div className={`flex-1 h-1 mx-4 ${
-                    step > s.num ? 'bg-blue-600' : 'bg-gray-200'
-                  }`} />
-                )}
-              </React.Fragment>
-            ))}
-          </div>
+<div className="flex items-center justify-between mb-8">
+  {[
+    { num: 1, label: 'Thông tin' },
+    { num: 2, label: 'Teams' },
+    { num: 3, label: 'Chọn Rules' },
+    { num: 4, label: 'Xem lại' }
+  ].map((s, idx) => (
+    <React.Fragment key={s.num}>
+      <div className="flex flex-col items-center">
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
+          step >= s.num ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
+        }`}>
+          {step > s.num ? <Check className="w-5 h-5" /> : s.num}
+        </div>
+        <p className="text-xs mt-2 text-gray-600">{s.label}</p>
+      </div>
+      {idx < 3 && (
+        <div className={`flex-1 h-1 mx-4 ${
+          step > s.num ? 'bg-blue-600' : 'bg-gray-200'
+        }`} />
+      )}
+    </React.Fragment>
+  ))}
+</div>
 
           {/* Step Content */}
-          {step === 1 && <BasicInfoStep />}
-          {step === 2 && <SelectRulesStep />}
-          {step === 3 && <ReviewStep />}
+{step === 1 && <BasicInfoStep />}
+{step === 2 && <TeamsStep />}
+{step === 3 && <SelectRulesStep />}
+{step === 4 && <ReviewStep />}
 
           {/* Actions */}
           <div className="flex gap-3 pt-6 mt-6 border-t border-gray-200">
@@ -466,7 +607,7 @@ const CreateEventModal = ({ onClose, onSuccess }) => {
                 loading ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'
               } disabled:opacity-50`}
             >
-              {loading ? 'Đang xử lý...' : step === 3 ? '✓ Tạo sự kiện' : 'Tiếp tục →'}
+{loading ? 'Đang xử lý...' : step === 4 ? '✓ Tạo sự kiện' : 'Tiếp tục →'}
             </button>
           </div>
         </div>
