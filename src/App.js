@@ -1,15 +1,15 @@
 // FILE: src/App.js
 // App hoàn chỉnh với Authentication, Member Dashboard, Admin Dashboard
 
-import React, { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { onAuthChange, isAdmin } from './services/auth-service';
-import LoginPage from './components/Auth/LoginPage';
-import MemberDashboard from './components/Member/MemberDashboard';
-import AdminDashboard from './components/Admin/AdminDashboard';
-import StravaCallback from './components/StravaCallback';
-import SeedDataPage from './components/SeedData';
-import SetupAdmin from './components/Admin/SetupAdmin';
+import React, { useState, useEffect } from "react";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { onAuthChange, isAdmin } from "./services/auth-service";
+import LoginPage from "./components/Auth/LoginPage";
+import MemberDashboard from "./components/Member/MemberDashboard";
+import AdminDashboard from "./components/Admin/AdminDashboard";
+import StravaCallback from "./components/StravaCallback";
+import SeedDataPage from "./components/SeedData";
+import SetupAdmin from "./components/Admin/SetupAdmin";
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -18,8 +18,7 @@ function App() {
   useEffect(() => {
     // Lắng nghe trạng thái đăng nhập
     const unsubscribe = onAuthChange((user) => {
-
-      console.log('Auth state changed:', user); // Debug
+      console.log("Auth state changed:", user); // Debug
       setCurrentUser(user);
       setLoading(false);
     });
@@ -47,18 +46,30 @@ function App() {
         {/* Thêm route (trong <Routes>) */}
         <Route path="/setup-admin" element={<SetupAdmin />} />
         {/* Strava Callback */}
-        <Route path="/strava/callback" element={<StravaCallback currentUser={currentUser} />} />
-        
+        <Route
+          path="/strava/callback"
+          element={<StravaCallback currentUser={currentUser} />}
+        />
+
         {/* Main Routes */}
-        <Route path="/*" element={
-          !currentUser ? (
-            <LoginPage onLoginSuccess={setCurrentUser} />
-          ) : isAdmin(currentUser) ? (
-            <AdminDashboard user={currentUser} onLogout={() => setCurrentUser(null)} />
-          ) : (
-            <MemberDashboard user={currentUser} onLogout={() => setCurrentUser(null)} />
-          )
-        } />
+        <Route
+          path="/*"
+          element={
+            !currentUser ? (
+              <LoginPage onLoginSuccess={setCurrentUser} />
+            ) : isAdmin(currentUser) ? (
+              <AdminDashboard
+                user={currentUser}
+                onLogout={() => setCurrentUser(null)}
+              />
+            ) : (
+              <MemberDashboard
+                user={currentUser}
+                onLogout={() => setCurrentUser(null)}
+              />
+            )
+          }
+        />
       </Routes>
     </BrowserRouter>
   );

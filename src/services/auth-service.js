@@ -1,33 +1,37 @@
-import { 
+import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
-  onAuthStateChanged
-} from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { auth, db } from './firebase';
+  onAuthStateChanged,
+} from "firebase/auth";
+import { doc, setDoc, getDoc } from "firebase/firestore";
+import { auth, db } from "./firebase";
 
 // Đăng ký user mới
-export const registerUser = async (email, password, name, role = 'member') => {
+export const registerUser = async (email, password, name, role = "member") => {
   try {
     // Tạo user trong Firebase Auth
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const userCredential = await createUserWithEmailAndPassword(
+      auth,
+      email,
+      password
+    );
     const user = userCredential.user;
 
     // Lưu thông tin user vào Firestore
-    await setDoc(doc(db, 'users', user.uid), {
+    await setDoc(doc(db, "users", user.uid), {
       email: email,
       name: name,
       role: role, // 'admin' hoặc 'member'
       createdAt: new Date(),
       stravaIntegration: {
-        isConnected: false
-      }
+        isConnected: false,
+      },
     });
 
     return { success: true, user: user };
   } catch (error) {
-    console.error('Error registering user:', error);
+    console.error("Error registering user:", error);
     return { success: false, error: error.message };
   }
 };
@@ -35,24 +39,28 @@ export const registerUser = async (email, password, name, role = 'member') => {
 // Đăng nhập
 export const loginUser = async (email, password) => {
   try {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    console.log('User logged in:', userCredential.user);
+    const userCredential = await signInWithEmailAndPassword(
+      auth,
+      email,
+      password
+    );
+    console.log("User logged in:", userCredential.user);
     const user = userCredential.user;
 
     // Lấy thông tin user từ Firestore
-    const userDoc = await getDoc(doc(db, 'users', user.uid));
+    const userDoc = await getDoc(doc(db, "users", user.uid));
     const userData = userDoc.data();
 
-    return { 
-      success: true, 
+    return {
+      success: true,
       user: {
         uid: user.uid,
         email: user.email,
-        ...userData
-      }
+        ...userData,
+      },
     };
   } catch (error) {
-    console.error('Error logging in:', error);
+    console.error("Error logging in:", error);
     return { success: false, error: error.message };
   }
 };
@@ -63,7 +71,7 @@ export const logoutUser = async () => {
     await signOut(auth);
     return { success: true };
   } catch (error) {
-    console.error('Error logging out:', error);
+    console.error("Error logging out:", error);
     return { success: false, error: error.message };
   }
 };
@@ -73,13 +81,13 @@ export const onAuthChange = (callback) => {
   return onAuthStateChanged(auth, async (user) => {
     if (user) {
       // User đã đăng nhập, lấy thông tin từ Firestore
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      const userDoc = await getDoc(doc(db, "users", user.uid));
       const userData = userDoc.data();
-      
+
       callback({
         uid: user.uid,
         email: user.email,
-        ...userData
+        ...userData,
       });
     } else {
       // User chưa đăng nhập
@@ -90,5 +98,5 @@ export const onAuthChange = (callback) => {
 
 // Kiểm tra role
 export const isAdmin = (user) => {
-  return user && user.role === 'admin';
+  return user && user.role === "admin";
 };

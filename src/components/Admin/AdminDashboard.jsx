@@ -1,10 +1,27 @@
-import React, { useState, useEffect } from 'react';
-import { Calendar, Plus, Users, Settings, LogOut, Edit, Trash2, Eye, AlertCircle, X } from 'lucide-react';
-import { getEvents, createEvent, getRules, getRuleGroups } from '../../services/firebase-service';
-import { logoutUser } from '../../services/auth-service';
+import React, { useState, useEffect } from "react";
+import {
+  Calendar,
+  Plus,
+  Users,
+  Settings,
+  LogOut,
+  Edit,
+  Trash2,
+  Eye,
+  AlertCircle,
+  X,
+} from "lucide-react";
+import {
+  getEvents,
+  createEvent,
+  getRules,
+  getRuleGroups,
+} from "../../services/firebase-service";
+import { logoutUser } from "../../services/auth-service";
+import CreateEventModal from "./CreateEventModal";
 
 const AdminDashboard = ({ user, onLogout }) => {
-  const [currentTab, setCurrentTab] = useState('events');
+  const [currentTab, setCurrentTab] = useState("events");
   const [events, setEvents] = useState([]);
   const [rules, setRules] = useState([]);
   const [ruleGroups, setRuleGroups] = useState([]);
@@ -13,7 +30,7 @@ const AdminDashboard = ({ user, onLogout }) => {
   const [showEventDetail, setShowEventDetail] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [showCreateRule, setShowCreateRule] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   useEffect(() => {
     loadData();
@@ -21,43 +38,43 @@ const AdminDashboard = ({ user, onLogout }) => {
 
   const loadData = async () => {
     setLoading(true);
-    setError('');
-    
+    setError("");
+
     try {
       const [eventsResult, rulesResult, groupsResult] = await Promise.all([
         getEvents(),
         getRules(),
-        getRuleGroups()
+        getRuleGroups(),
       ]);
 
-      console.log('Events result:', eventsResult);
-      console.log('Rules result:', rulesResult);
-      console.log('Groups result:', groupsResult);
+      console.log("Events result:", eventsResult);
+      console.log("Rules result:", rulesResult);
+      console.log("Groups result:", groupsResult);
 
       if (eventsResult.success) {
         setEvents(eventsResult.data || []);
       } else {
-        console.error('Events error:', eventsResult.error);
+        console.error("Events error:", eventsResult.error);
       }
 
       if (rulesResult.success) {
         setRules(rulesResult.data || []);
       } else {
-        console.error('Rules error:', rulesResult.error);
+        console.error("Rules error:", rulesResult.error);
       }
 
       if (groupsResult.success) {
         setRuleGroups(groupsResult.data || []);
       } else {
-        console.error('Groups error:', groupsResult.error);
+        console.error("Groups error:", groupsResult.error);
       }
 
       if (rulesResult.data?.length === 0 && groupsResult.data?.length === 0) {
-        setError('Chưa có dữ liệu Rules. Vui lòng chạy Seed Data trước.');
+        setError("Chưa có dữ liệu Rules. Vui lòng chạy Seed Data trước.");
       }
     } catch (err) {
-      console.error('Load data error:', err);
-      setError('Lỗi khi tải dữ liệu: ' + err.message);
+      console.error("Load data error:", err);
+      setError("Lỗi khi tải dữ liệu: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -71,11 +88,11 @@ const AdminDashboard = ({ user, onLogout }) => {
   const handleCreateEvent = async (eventData) => {
     const result = await createEvent(eventData);
     if (result.success) {
-      alert('Tạo sự kiện thành công!');
+      alert("Tạo sự kiện thành công!");
       setShowCreateEvent(false);
       loadData();
     } else {
-      alert('Lỗi: ' + result.error);
+      alert("Lỗi: " + result.error);
     }
   };
 
@@ -94,8 +111,12 @@ const AdminDashboard = ({ user, onLogout }) => {
               <Settings className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-800">Admin Dashboard</h1>
-              <p className="text-sm text-gray-600">Quản lý hệ thống - {user.name}</p>
+              <h1 className="text-2xl font-bold text-gray-800">
+                Admin Dashboard
+              </h1>
+              <p className="text-sm text-gray-600">
+                Quản lý hệ thống - {user.name}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -117,27 +138,33 @@ const AdminDashboard = ({ user, onLogout }) => {
     <aside className="w-64 bg-white h-screen shadow-md sticky top-0">
       <nav className="p-4 space-y-2">
         <button
-          onClick={() => setCurrentTab('events')}
+          onClick={() => setCurrentTab("events")}
           className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-            currentTab === 'events' ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'
+            currentTab === "events"
+              ? "bg-blue-600 text-white"
+              : "text-gray-700 hover:bg-gray-100"
           }`}
         >
           <Calendar className="w-5 h-5" />
           <span className="font-medium">Quản lý Sự kiện</span>
         </button>
         <button
-          onClick={() => setCurrentTab('rules')}
+          onClick={() => setCurrentTab("rules")}
           className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-            currentTab === 'rules' ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'
+            currentTab === "rules"
+              ? "bg-blue-600 text-white"
+              : "text-gray-700 hover:bg-gray-100"
           }`}
         >
           <Settings className="w-5 h-5" />
           <span className="font-medium">Quản lý Rules</span>
         </button>
         <button
-          onClick={() => setCurrentTab('users')}
+          onClick={() => setCurrentTab("users")}
           className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-            currentTab === 'users' ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-100'
+            currentTab === "users"
+              ? "bg-blue-600 text-white"
+              : "text-gray-700 hover:bg-gray-100"
           }`}
         >
           <Users className="w-5 h-5" />
@@ -155,8 +182,8 @@ const AdminDashboard = ({ user, onLogout }) => {
         <div>
           <p className="text-sm font-medium text-yellow-900">Chưa có dữ liệu</p>
           <p className="text-sm text-yellow-800 mt-1">{error}</p>
-          <a 
-            href="/seed-data" 
+          <a
+            href="/seed-data"
             className="inline-block mt-3 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 text-sm font-medium"
           >
             Đi tới Seed Data →
@@ -171,7 +198,7 @@ const AdminDashboard = ({ user, onLogout }) => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-900">Quản lý Sự kiện</h2>
-        <button 
+        <button
           onClick={() => setShowCreateEvent(true)}
           className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
         >
@@ -188,7 +215,7 @@ const AdminDashboard = ({ user, onLogout }) => {
         <div className="bg-white rounded-lg shadow p-12 text-center">
           <Calendar className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <p className="text-gray-500 mb-2">Chưa có sự kiện nào</p>
-          <button 
+          <button
             onClick={() => setShowCreateEvent(true)}
             className="text-blue-600 hover:text-blue-700 font-medium"
           >
@@ -200,15 +227,25 @@ const AdminDashboard = ({ user, onLogout }) => {
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tên sự kiện</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Thời gian</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Người tham gia</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Trạng thái</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Thao tác</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  Tên sự kiện
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  Thời gian
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  Người tham gia
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  Trạng thái
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  Thao tác
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {events.map(event => (
+              {events.map((event) => (
                 <tr key={event.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4">
                     <p className="font-medium text-gray-900">{event.name}</p>
@@ -220,27 +257,37 @@ const AdminDashboard = ({ user, onLogout }) => {
                     {event.registration?.currentParticipants || 0}
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                      event.status === 'active' ? 'bg-green-100 text-green-800' : 
-                      event.status === 'completed' ? 'bg-gray-100 text-gray-800' :
-                      'bg-yellow-100 text-yellow-800'
-                    }`}>
+                    <span
+                      className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                        event.status === "active"
+                          ? "bg-green-100 text-green-800"
+                          : event.status === "completed"
+                          ? "bg-gray-100 text-gray-800"
+                          : "bg-yellow-100 text-yellow-800"
+                      }`}
+                    >
                       {event.status}
                     </span>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
-                      <button 
+                      <button
                         onClick={() => handleViewEvent(event)}
                         className="text-blue-600 hover:text-blue-800 p-1"
                         title="Xem chi tiết"
                       >
                         <Eye className="w-4 h-4" />
                       </button>
-                      <button className="text-green-600 hover:text-green-800 p-1" title="Sửa">
+                      <button
+                        className="text-green-600 hover:text-green-800 p-1"
+                        title="Sửa"
+                      >
                         <Edit className="w-4 h-4" />
                       </button>
-                      <button className="text-red-600 hover:text-red-800 p-1" title="Xóa">
+                      <button
+                        className="text-red-600 hover:text-red-800 p-1"
+                        title="Xóa"
+                      >
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -262,7 +309,9 @@ const AdminDashboard = ({ user, onLogout }) => {
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
         <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
           <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
-            <h2 className="text-2xl font-bold text-gray-900">Chi tiết sự kiện</h2>
+            <h2 className="text-2xl font-bold text-gray-900">
+              Chi tiết sự kiện
+            </h2>
             <button
               onClick={() => setShowEventDetail(false)}
               className="text-gray-400 hover:text-gray-600"
@@ -275,8 +324,8 @@ const AdminDashboard = ({ user, onLogout }) => {
             {/* Cover Image */}
             {selectedEvent.media?.coverImage && (
               <div className="relative h-64 rounded-lg overflow-hidden">
-                <img 
-                  src={selectedEvent.media.coverImage} 
+                <img
+                  src={selectedEvent.media.coverImage}
                   alt={selectedEvent.name}
                   className="w-full h-full object-cover"
                 />
@@ -286,16 +335,26 @@ const AdminDashboard = ({ user, onLogout }) => {
             {/* Basic Info */}
             <div className="grid md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tên sự kiện</label>
-                <p className="text-lg font-semibold text-gray-900">{selectedEvent.name}</p>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Tên sự kiện
+                </label>
+                <p className="text-lg font-semibold text-gray-900">
+                  {selectedEvent.name}
+                </p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Trạng thái</label>
-                <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${
-                  selectedEvent.status === 'active' ? 'bg-green-100 text-green-800' : 
-                  selectedEvent.status === 'completed' ? 'bg-gray-100 text-gray-800' :
-                  'bg-yellow-100 text-yellow-800'
-                }`}>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Trạng thái
+                </label>
+                <span
+                  className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${
+                    selectedEvent.status === "active"
+                      ? "bg-green-100 text-green-800"
+                      : selectedEvent.status === "completed"
+                      ? "bg-gray-100 text-gray-800"
+                      : "bg-yellow-100 text-yellow-800"
+                  }`}
+                >
                   {selectedEvent.status}
                 </span>
               </div>
@@ -303,23 +362,33 @@ const AdminDashboard = ({ user, onLogout }) => {
 
             <div className="grid md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Ngày bắt đầu</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Ngày bắt đầu
+                </label>
                 <p className="text-gray-900">{selectedEvent.startDate}</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Ngày kết thúc</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Ngày kết thúc
+                </label>
                 <p className="text-gray-900">{selectedEvent.endDate}</p>
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Mô tả</label>
-              <p className="text-gray-700 leading-relaxed">{selectedEvent.description || 'Chưa có mô tả'}</p>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Mô tả
+              </label>
+              <p className="text-gray-700 leading-relaxed">
+                {selectedEvent.description || "Chưa có mô tả"}
+              </p>
             </div>
 
             {/* Registration Info */}
             <div className="bg-blue-50 rounded-lg p-4">
-              <h3 className="font-semibold text-blue-900 mb-3">Thông tin đăng ký</h3>
+              <h3 className="font-semibold text-blue-900 mb-3">
+                Thông tin đăng ký
+              </h3>
               <div className="grid md:grid-cols-3 gap-4">
                 <div>
                   <p className="text-sm text-blue-700">Người tham gia</p>
@@ -330,13 +399,14 @@ const AdminDashboard = ({ user, onLogout }) => {
                 <div>
                   <p className="text-sm text-blue-700">Giới hạn</p>
                   <p className="text-2xl font-bold text-blue-900">
-                    {selectedEvent.registration?.maxParticipants || 'Không giới hạn'}
+                    {selectedEvent.registration?.maxParticipants ||
+                      "Không giới hạn"}
                   </p>
                 </div>
                 <div>
                   <p className="text-sm text-blue-700">Đăng ký</p>
                   <p className="text-lg font-bold text-blue-900">
-                    {selectedEvent.registration?.isOpen ? 'Đang mở' : 'Đã đóng'}
+                    {selectedEvent.registration?.isOpen ? "Đang mở" : "Đã đóng"}
                   </p>
                 </div>
               </div>
@@ -344,15 +414,11 @@ const AdminDashboard = ({ user, onLogout }) => {
 
             {/* Action Buttons */}
             <div className="flex gap-3 pt-4 border-t">
-              <button
-                className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2"
-              >
+              <button className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2">
                 <Edit className="w-4 h-4" />
                 Chỉnh sửa
               </button>
-              <button
-                className="flex-1 bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 flex items-center justify-center gap-2"
-              >
+              <button className="flex-1 bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 flex items-center justify-center gap-2">
                 <Trash2 className="w-4 h-4" />
                 Xóa sự kiện
               </button>
@@ -374,7 +440,7 @@ const AdminDashboard = ({ user, onLogout }) => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-gray-900">Thư viện Rules</h2>
-        <button 
+        <button
           onClick={() => setShowCreateRule(true)}
           className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
         >
@@ -393,7 +459,7 @@ const AdminDashboard = ({ user, onLogout }) => {
         <div className="bg-white rounded-lg shadow p-12 text-center">
           <Settings className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <p className="text-gray-500 mb-2">Chưa có Rule Groups</p>
-          <a 
+          <a
             href="/seed-data"
             className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
@@ -401,32 +467,43 @@ const AdminDashboard = ({ user, onLogout }) => {
           </a>
         </div>
       ) : (
-        ruleGroups.map(group => (
+        ruleGroups.map((group) => (
           <div key={group.id} className="bg-white rounded-lg shadow p-6">
             <h3 className="text-lg font-semibold mb-4">
               {group.icon} {group.name}
             </h3>
             <div className="grid grid-cols-2 gap-4">
               {rules
-                .filter(r => r.groupId === group.id)
-                .map(rule => (
-                  <div key={rule.id} className="border border-gray-200 p-4 rounded-lg hover:border-blue-500 transition-colors">
+                .filter((r) => r.groupId === group.id)
+                .map((rule) => (
+                  <div
+                    key={rule.id}
+                    className="border border-gray-200 p-4 rounded-lg hover:border-blue-500 transition-colors"
+                  >
                     <h4 className="font-semibold text-gray-900">{rule.name}</h4>
-                    <p className="text-sm text-gray-600 mt-1">{rule.description}</p>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {rule.description}
+                    </p>
                     <div className="mt-3 flex justify-between items-center">
                       <span className="text-xs text-gray-500">
                         Sử dụng: {rule.stats?.usageCount || 0} lần
                       </span>
                       <div className="flex gap-2">
-                        <button className="text-blue-600 text-sm hover:underline">Sửa</button>
-                        <button className="text-red-600 text-sm hover:underline">Xóa</button>
+                        <button className="text-blue-600 text-sm hover:underline">
+                          Sửa
+                        </button>
+                        <button className="text-red-600 text-sm hover:underline">
+                          Xóa
+                        </button>
                       </div>
                     </div>
                   </div>
                 ))}
             </div>
-            {rules.filter(r => r.groupId === group.id).length === 0 && (
-              <p className="text-gray-500 text-sm">Chưa có rule nào trong nhóm này</p>
+            {rules.filter((r) => r.groupId === group.id).length === 0 && (
+              <p className="text-gray-500 text-sm">
+                Chưa có rule nào trong nhóm này
+              </p>
             )}
           </div>
         ))
@@ -449,7 +526,8 @@ const AdminDashboard = ({ user, onLogout }) => {
         </div>
         <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4">
           <p className="text-sm text-yellow-800">
-            Tính năng đang được phát triển. Hiện tại bạn có thể sử dụng các rules có sẵn từ Seed Data.
+            Tính năng đang được phát triển. Hiện tại bạn có thể sử dụng các
+            rules có sẵn từ Seed Data.
           </p>
         </div>
         <div className="mt-4 flex justify-end">
@@ -474,141 +552,24 @@ const AdminDashboard = ({ user, onLogout }) => {
     </div>
   );
 
-  // Create Event Modal
-  const CreateEventModal = () => {
-    const [formData, setFormData] = useState({
-      name: '',
-      description: '',
-      startDate: '',
-      endDate: '',
-      status: 'active',
-      media: {
-        coverImage: ''
-      },
-      registration: {
-        isOpen: true,
-        maxParticipants: null,
-        currentParticipants: 0
-      }
-    });
-
-    const handleSubmit = (e) => {
-      e.preventDefault();
-      handleCreateEvent(formData);
-    };
-
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-        <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-          <div className="p-6">
-            <h2 className="text-2xl font-bold mb-4">Tạo Sự kiện Mới</h2>
-            
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Tên sự kiện *
-                </label>
-                <input
-                  type="text"
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  value={formData.name}
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  placeholder="VD: Challenge Chạy Đón Tết 2025"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Mô tả
-                </label>
-                <textarea
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  rows="3"
-                  value={formData.description}
-                  onChange={(e) => setFormData({...formData, description: e.target.value})}
-                  placeholder="Mô tả chi tiết về sự kiện..."
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Ngày bắt đầu *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={formData.startDate}
-                    onChange={(e) => setFormData({...formData, startDate: e.target.value})}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Ngày kết thúc *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={formData.endDate}
-                    onChange={(e) => setFormData({...formData, endDate: e.target.value})}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  URL ảnh bìa
-                </label>
-                <input
-                  type="url"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  value={formData.media.coverImage}
-                  onChange={(e) => setFormData({
-                    ...formData, 
-                    media: {...formData.media, coverImage: e.target.value}
-                  })}
-                  placeholder="https://example.com/image.jpg"
-                />
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="submit"
-                  className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 font-medium"
-                >
-                  Tạo sự kiện
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowCreateEvent(false)}
-                  className="flex-1 bg-gray-200 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-300 font-medium"
-                >
-                  Hủy
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
       <div className="flex">
         <Sidebar />
         <main className="flex-1 p-8">
-          {currentTab === 'events' && <EventsManagement />}
-          {currentTab === 'rules' && <RulesManagement />}
-          {currentTab === 'users' && <UsersManagement />}
+          {currentTab === "events" && <EventsManagement />}
+          {currentTab === "rules" && <RulesManagement />}
+          {currentTab === "users" && <UsersManagement />}
         </main>
       </div>
 
-      {showCreateEvent && <CreateEventModal />}
+      {showCreateEvent && (
+        <CreateEventModal
+          onClose={() => setShowCreateEvent(false)}
+          onSuccess={loadData}
+        />
+      )}
       {showEventDetail && <EventDetailModal />}
       {showCreateRule && <CreateRuleModal />}
     </div>

@@ -1,35 +1,39 @@
 // FILE: src/components/Auth/LoginPage.jsx
 
-import React, { useState } from 'react';
-import { LogIn, UserPlus, TrendingUp } from 'lucide-react';
-import { loginUser, registerUser } from '../../services/auth-service';
+import React, { useState } from "react";
+import { LogIn, UserPlus, TrendingUp } from "lucide-react";
+import { loginUser, registerUser } from "../../services/auth-service";
 
 const LoginPage = ({ onLoginSuccess }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    name: ''
+    email: "",
+    password: "",
+    name: "",
   });
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
+    setError("");
 
     try {
       let result;
       if (isLogin) {
         result = await loginUser(formData.email, formData.password);
       } else {
-        result = await registerUser(formData.email, formData.password, formData.name);
+        result = await registerUser(
+          formData.email,
+          formData.password,
+          formData.name
+        );
       }
 
       if (result.success) {
         // Success - user sẽ được load tự động qua onAuthChange
-        console.log('Login/Register success');
+        console.log("Login/Register success");
       } else {
         setError(result.error);
       }
@@ -43,7 +47,7 @@ const LoginPage = ({ onLoginSuccess }) => {
   // Quick login demo accounts
   const handleDemoLogin = async (email, password) => {
     setLoading(true);
-    setError('');
+    setError("");
     console.log(email);
     console.log(password);
     const result = await loginUser(email, password);
@@ -61,7 +65,9 @@ const LoginPage = ({ onLoginSuccess }) => {
           <div className="bg-gradient-to-r from-blue-600 to-blue-400 w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
             <TrendingUp className="w-10 h-10 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Hòa Khánh Runners</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            Hòa Khánh Runners
+          </h1>
           <p className="text-gray-600">Cộng đồng chạy bộ Việt Nam</p>
         </div>
 
@@ -70,12 +76,12 @@ const LoginPage = ({ onLoginSuccess }) => {
           <button
             onClick={() => {
               setIsLogin(true);
-              setError('');
+              setError("");
             }}
             className={`flex-1 py-3 rounded-md font-medium transition-all ${
-              isLogin 
-                ? 'bg-white text-blue-600 shadow-sm' 
-                : 'text-gray-600 hover:text-gray-900'
+              isLogin
+                ? "bg-white text-blue-600 shadow-sm"
+                : "text-gray-600 hover:text-gray-900"
             }`}
           >
             Đăng nhập
@@ -83,12 +89,12 @@ const LoginPage = ({ onLoginSuccess }) => {
           <button
             onClick={() => {
               setIsLogin(false);
-              setError('');
+              setError("");
             }}
             className={`flex-1 py-3 rounded-md font-medium transition-all ${
-              !isLogin 
-                ? 'bg-white text-blue-600 shadow-sm' 
-                : 'text-gray-600 hover:text-gray-900'
+              !isLogin
+                ? "bg-white text-blue-600 shadow-sm"
+                : "text-gray-600 hover:text-gray-900"
             }`}
           >
             Đăng ký
@@ -114,7 +120,9 @@ const LoginPage = ({ onLoginSuccess }) => {
                 required={!isLogin}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 value={formData.name}
-                onChange={(e) => setFormData({...formData, name: e.target.value})}
+                onChange={(e) =>
+                  setFormData({ ...formData, name: e.target.value })
+                }
                 placeholder="Nguyễn Văn A"
               />
             </div>
@@ -129,7 +137,9 @@ const LoginPage = ({ onLoginSuccess }) => {
               required
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               value={formData.email}
-              onChange={(e) => setFormData({...formData, email: e.target.value})}
+              onChange={(e) =>
+                setFormData({ ...formData, email: e.target.value })
+              }
               placeholder="email@example.com"
             />
           </div>
@@ -144,7 +154,9 @@ const LoginPage = ({ onLoginSuccess }) => {
               minLength="6"
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               value={formData.password}
-              onChange={(e) => setFormData({...formData, password: e.target.value})}
+              onChange={(e) =>
+                setFormData({ ...formData, password: e.target.value })
+              }
               placeholder="••••••••"
             />
             {!isLogin && (
@@ -156,9 +168,9 @@ const LoginPage = ({ onLoginSuccess }) => {
             type="submit"
             disabled={loading}
             className={`w-full py-3 rounded-lg font-semibold text-white transition-all flex items-center justify-center gap-2 shadow-lg ${
-              loading 
-                ? 'bg-gray-400 cursor-not-allowed' 
-                : 'bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600'
+              loading
+                ? "bg-gray-400 cursor-not-allowed"
+                : "bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600"
             }`}
           >
             {loading ? (
@@ -168,8 +180,12 @@ const LoginPage = ({ onLoginSuccess }) => {
               </>
             ) : (
               <>
-                {isLogin ? <LogIn className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
-                {isLogin ? 'Đăng nhập' : 'Đăng ký'}
+                {isLogin ? (
+                  <LogIn className="w-5 h-5" />
+                ) : (
+                  <UserPlus className="w-5 h-5" />
+                )}
+                {isLogin ? "Đăng nhập" : "Đăng ký"}
               </>
             )}
           </button>
@@ -182,31 +198,46 @@ const LoginPage = ({ onLoginSuccess }) => {
           </p>
           <div className="space-y-2">
             <button
-              onClick={() => handleDemoLogin('hoakhanhrunners@gmail.com', 'Admin@123')}
+              onClick={() =>
+                handleDemoLogin("hoakhanhrunners@gmail.com", "Admin@123")
+              }
               disabled={loading}
               className="w-full bg-blue-50 hover:bg-blue-100 border border-blue-200 p-3 rounded-lg transition-all text-left disabled:opacity-50"
             >
               <p className="font-semibold text-blue-900 text-sm">👨‍💼 Admin</p>
-              <p className="text-blue-700 text-xs">hoakhanhrunners@gmail.com / Admin@123</p>
+              <p className="text-blue-700 text-xs">
+                hoakhanhrunners@gmail.com / Admin@123
+              </p>
             </button>
             <button
-              onClick={() => handleDemoLogin('member@gmail.com', 'Member@123')}
+              onClick={() => handleDemoLogin("member@gmail.com", "Member@123")}
               disabled={loading}
               className="w-full bg-green-50 hover:bg-green-100 border border-green-200 p-3 rounded-lg transition-all text-left disabled:opacity-50"
             >
               <p className="font-semibold text-green-900 text-sm">👤 Member</p>
-              <p className="text-green-700 text-xs">member@gmail.com / Member@123</p>
+              <p className="text-green-700 text-xs">
+                member@gmail.com / Member@123
+              </p>
             </button>
           </div>
           <p className="text-xs text-gray-500 mt-3 text-center">
-            ℹ️ Tài khoản demo chỉ hoạt động nếu đã tạo trong Firebase Authentication
+            ℹ️ Tài khoản demo chỉ hoạt động nếu đã tạo trong Firebase
+            Authentication
           </p>
         </div>
 
         {/* Footer Info */}
         <div className="mt-6 text-center">
           <p className="text-xs text-gray-500">
-            Bằng cách đăng nhập, bạn đồng ý với <a href="#" className="text-blue-600 hover:underline">Điều khoản</a> và <a href="#" className="text-blue-600 hover:underline">Chính sách</a> của chúng tôi
+            Bằng cách đăng nhập, bạn đồng ý với{" "}
+            <a href="#" className="text-blue-600 hover:underline">
+              Điều khoản
+            </a>{" "}
+            và{" "}
+            <a href="#" className="text-blue-600 hover:underline">
+              Chính sách
+            </a>{" "}
+            của chúng tôi
           </p>
         </div>
       </div>

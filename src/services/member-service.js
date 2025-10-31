@@ -1,39 +1,39 @@
-import { 
-  collection, 
-  addDoc, 
-  doc, 
+import {
+  collection,
+  addDoc,
+  doc,
   getDoc,
   getDocs,
-  query, 
+  query,
   where,
   updateDoc,
   Timestamp,
-  writeBatch
-} from 'firebase/firestore';
-import { db } from './firebase';
-import { getStravaActivities } from './strava-service';
+  writeBatch,
+} from "firebase/firestore";
+import { db } from "./firebase";
+import { getStravaActivities } from "./strava-service";
 
 // ===== EVENT REGISTRATION =====
 export const registerForEvent = async (eventId, userId, userName) => {
   try {
     // Check if already registered
     const q = query(
-      collection(db, 'eventParticipants'),
-      where('eventId', '==', eventId),
-      where('userId', '==', userId)
+      collection(db, "eventParticipants"),
+      where("eventId", "==", eventId),
+      where("userId", "==", userId)
     );
     const existing = await getDocs(q);
-    
+
     if (!existing.empty) {
-      return { success: false, error: 'Đã đăng ký sự kiện này rồi' };
+      return { success: false, error: "Đã đăng ký sự kiện này rồi" };
     }
 
     // Create participant
-    await addDoc(collection(db, 'eventParticipants'), {
+    await addDoc(collection(db, "eventParticipants"), {
       eventId,
       userId,
       userName,
-      status: 'active',
+      status: "active",
       registeredAt: Timestamp.now(),
       progress: {
         totalDistance: 0,
@@ -42,23 +42,23 @@ export const registerForEvent = async (eventId, userId, userName) => {
         validActivities: 0,
         completionRate: 0,
         currentRank: 0,
-        totalPoints: 0
+        totalPoints: 0,
       },
-      rulesCompliance: []
+      rulesCompliance: [],
     });
 
     // Update event participant count
-    const eventRef = doc(db, 'events', eventId);
+    const eventRef = doc(db, "events", eventId);
     const eventSnap = await getDoc(eventRef);
     const currentCount = eventSnap.data().registration.currentParticipants || 0;
-    
+
     await updateDoc(eventRef, {
-      'registration.currentParticipants': currentCount + 1
+      "registration.currentParticipants": currentCount + 1,
     });
 
     return { success: true };
   } catch (error) {
-    console.error('Error registering for event:', error);
+    console.error("Error registering for event:", error);
     return { success: false, error: error.message };
   }
 };
@@ -69,15 +69,18 @@ export const syncUserActivities = async (user, startDate, endDate) => {
     // Check token
     const tokenExpiry = user.stravaIntegration.tokenExpiry;
     const now = Date.now() / 1000;
-    
+
     if (tokenExpiry < now) {
-      return { success: false, error: 'Strava token hết hạn, vui lòng kết nối lại' };
+      return {
+        success: false,
+        error: "Strava token hết hạn, vui lòng kết nối lại",
+      };
     }
 
     // Get activities from Strava
     const afterTimestamp = Math.floor(new Date(startDate).getTime() / 1000);
     const beforeTimestamp = Math.floor(new Date(endDate).getTime() / 1000);
-    
+
     const activities = await getStravaActivities(
       user.stravaIntegration.accessToken,
       afterTimestamp,
@@ -85,7 +88,12 @@ export const syncUserActivities = async (user, startDate, endDate) => {
     );
 
     if (!activities || activities.length === 0) {
-      return { success: true, total: 0, saved: 0, message: 'Không có hoạt động mới' };
+      return {
+        success: true,
+        total: 0,
+        saved: 0,
+        message: "Không có hoạt động mới",
+      };
     }
 
     // Save to Firebase
@@ -95,8 +103,8 @@ export const syncUserActivities = async (user, startDate, endDate) => {
     for (const activity of activities) {
       // Check if activity already exists
       const q = query(
-        collection(db, 'trackLogs'),
-        where('stravaActivityId', '==', activity.id.toString())
+        collection(db, "trackLogs"),
+        where("stravaActivityId", "==", activity.id.toString())
       );
       const existingSnap = await getDocs(q);
 
@@ -104,54 +112,58 @@ export const syncUserActivities = async (user, startDate, endDate) => {
         userId: user.uid,
         stravaActivityId: activity.id.toString(),
         name: activity.name,
-        date: activity.start_date.split('T')[0],
+        date: activity.start_date.split("T")[0],
         startDateTime: Timestamp.fromDate(new Date(activity.start_date)),
         distance: activity.distance / 1000,
         duration: {
           movingTime: activity.moving_time,
           elapsedTime: activity.elapsed_time,
           movingTimeFormatted: formatDuration(activity.moving_time),
-          elapsedTimeFormatted: formatDuration(activity.elapsed_time)
+          elapsedTimeFormatted: formatDuration(activity.elapsed_time),
         },
         pace: {
-          average: Math.round(activity.moving_time / (activity.distance / 1000)),
-          averageFormatted: formatPace(Math.round(activity.moving_time / (activity.distance / 1000)))
+          average: Math.round(
+            activity.moving_time / (activity.distance / 1000)
+          ),
+          averageFormatted: formatPace(
+            Math.round(activity.moving_time / (activity.distance / 1000))
+          ),
         },
         elevation: {
           total: Math.round(activity.total_elevation_gain),
           high: activity.elev_high || 0,
-          low: activity.elev_low || 0
+          low: activity.elev_low || 0,
         },
         heartRate: {
           average: activity.average_heartrate || null,
           max: activity.max_heartrate || null,
-          hasHeartRateData: !!activity.average_heartrate
+          hasHeartRateData: !!activity.average_heartrate,
         },
         speed: {
           average: activity.average_speed * 3.6, // m/s to km/h
-          max: activity.max_speed * 3.6
+          max: activity.max_speed * 3.6,
         },
         calories: activity.calories || null,
         type: activity.type,
         map: {
           summaryPolyline: activity.map?.summary_polyline || null,
-          hasMap: !!activity.map?.summary_polyline
+          hasMap: !!activity.map?.summary_polyline,
         },
         location: {
           startLatlng: activity.start_latlng || null,
-          endLatlng: activity.end_latlng || null
+          endLatlng: activity.end_latlng || null,
         },
         stravaData: {
           kudosCount: activity.kudos_count || 0,
           commentCount: activity.comment_count || 0,
           athleteCount: activity.athlete_count || 0,
-          isPrivate: activity.private || false
+          isPrivate: activity.private || false,
         },
-        syncedAt: Timestamp.now()
+        syncedAt: Timestamp.now(),
       };
 
       if (existingSnap.empty) {
-        await addDoc(collection(db, 'trackLogs'), trackLog);
+        await addDoc(collection(db, "trackLogs"), trackLog);
         savedCount++;
       } else {
         await updateDoc(existingSnap.docs[0].ref, trackLog);
@@ -163,10 +175,10 @@ export const syncUserActivities = async (user, startDate, endDate) => {
       success: true,
       total: activities.length,
       saved: savedCount,
-      updated: updatedCount
+      updated: updatedCount,
     };
   } catch (error) {
-    console.error('Error syncing activities:', error);
+    console.error("Error syncing activities:", error);
     return { success: false, error: error.message };
   }
 };
@@ -175,39 +187,39 @@ export const syncUserActivities = async (user, startDate, endDate) => {
 export const validateAndCalculatePoints = async (eventId, userId) => {
   try {
     // Get event with rules
-    const eventSnap = await getDoc(doc(db, 'events', eventId));
+    const eventSnap = await getDoc(doc(db, "events", eventId));
     if (!eventSnap.exists()) {
-      return { success: false, error: 'Event not found' };
+      return { success: false, error: "Event not found" };
     }
 
     const event = eventSnap.data();
 
     // Get event rules
     const eventRulesQuery = query(
-      collection(db, 'eventRules'),
-      where('eventId', '==', eventId)
+      collection(db, "eventRules"),
+      where("eventId", "==", eventId)
     );
     const eventRulesSnap = await getDocs(eventRulesQuery);
-    
+
     const eventRules = [];
     for (const erDoc of eventRulesSnap.docs) {
       const er = erDoc.data();
-      const ruleSnap = await getDoc(doc(db, 'rules', er.ruleId));
+      const ruleSnap = await getDoc(doc(db, "rules", er.ruleId));
       eventRules.push({
         ...er,
-        ruleData: ruleSnap.data()
+        ruleData: ruleSnap.data(),
       });
     }
 
     // Get user's track logs in event period
     const logsQuery = query(
-      collection(db, 'trackLogs'),
-      where('userId', '==', userId),
-      where('date', '>=', event.startDate),
-      where('date', '<=', event.endDate)
+      collection(db, "trackLogs"),
+      where("userId", "==", userId),
+      where("date", ">=", event.startDate),
+      where("date", "<=", event.endDate)
     );
     const logsSnap = await getDocs(logsQuery);
-    const logs = logsSnap.docs.map(d => ({id: d.id, ...d.data()}));
+    const logs = logsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
     // Calculate stats
     let totalPoints = 0;
@@ -222,19 +234,31 @@ export const validateAndCalculatePoints = async (eventId, userId) => {
       for (const eventRule of eventRules) {
         const rule = eventRule.ruleData;
         const customValue = eventRule.customization.customValue;
-        
+
         let rulePass = false;
 
         // Check rule based on type
         switch (rule.config.type) {
-          case 'distance':
-            rulePass = checkDistanceRule(log.distance, rule.config.operator, customValue);
+          case "distance":
+            rulePass = checkDistanceRule(
+              log.distance,
+              rule.config.operator,
+              customValue
+            );
             break;
-          case 'pace':
-            rulePass = checkPaceRule(log.pace.average, rule.config.operator, customValue);
+          case "pace":
+            rulePass = checkPaceRule(
+              log.pace.average,
+              rule.config.operator,
+              customValue
+            );
             break;
-          case 'elevation':
-            rulePass = checkElevationRule(log.elevation.total, rule.config.operator, customValue);
+          case "elevation":
+            rulePass = checkElevationRule(
+              log.elevation.total,
+              rule.config.operator,
+              customValue
+            );
             break;
           default:
             rulePass = true;
@@ -257,32 +281,35 @@ export const validateAndCalculatePoints = async (eventId, userId) => {
 
     // Calculate aggregate rules (total_distance, activity_count)
     const totalDistance = logs.reduce((sum, log) => sum + log.distance, 0);
-    const totalElevation = logs.reduce((sum, log) => sum + log.elevation.total, 0);
+    const totalElevation = logs.reduce(
+      (sum, log) => sum + log.elevation.total,
+      0
+    );
 
     for (const eventRule of eventRules) {
       const rule = eventRule.ruleData;
       const customValue = eventRule.customization.customValue;
 
-      if (rule.config.type === 'total_distance') {
+      if (rule.config.type === "total_distance") {
         const pass = totalDistance >= customValue;
         rulesCompliance.push({
           ruleId: eventRule.ruleId,
-          status: pass ? 'met' : 'not_met',
+          status: pass ? "met" : "not_met",
           currentValue: totalDistance,
           requiredValue: customValue,
-          progress: totalDistance / customValue
+          progress: totalDistance / customValue,
         });
         if (pass) totalPoints += eventRule.customization.points;
       }
 
-      if (rule.config.type === 'activity_count') {
+      if (rule.config.type === "activity_count") {
         const pass = validActivities >= customValue;
         rulesCompliance.push({
           ruleId: eventRule.ruleId,
-          status: pass ? 'met' : 'not_met',
+          status: pass ? "met" : "not_met",
           currentValue: validActivities,
           requiredValue: customValue,
-          progress: validActivities / customValue
+          progress: validActivities / customValue,
         });
         if (pass) totalPoints += eventRule.customization.points;
       }
@@ -290,9 +317,9 @@ export const validateAndCalculatePoints = async (eventId, userId) => {
 
     // Update participant progress
     const participantQuery = query(
-      collection(db, 'eventParticipants'),
-      where('eventId', '==', eventId),
-      where('userId', '==', userId)
+      collection(db, "eventParticipants"),
+      where("eventId", "==", eventId),
+      where("userId", "==", userId)
     );
     const participantSnap = await getDocs(participantQuery);
 
@@ -304,10 +331,10 @@ export const validateAndCalculatePoints = async (eventId, userId) => {
           totalElevation: totalElevation,
           validActivities: validActivities,
           completionRate: validActivities / logs.length,
-          totalPoints: totalPoints
+          totalPoints: totalPoints,
         },
         rulesCompliance: rulesCompliance,
-        lastUpdated: Timestamp.now()
+        lastUpdated: Timestamp.now(),
       });
     }
 
@@ -316,10 +343,10 @@ export const validateAndCalculatePoints = async (eventId, userId) => {
       totalPoints,
       validActivities,
       totalActivities: logs.length,
-      totalDistance
+      totalDistance,
     };
   } catch (error) {
-    console.error('Error validating activities:', error);
+    console.error("Error validating activities:", error);
     return { success: false, error: error.message };
   }
 };
@@ -327,27 +354,38 @@ export const validateAndCalculatePoints = async (eventId, userId) => {
 // ===== HELPER FUNCTIONS =====
 const checkDistanceRule = (distance, operator, value) => {
   switch (operator) {
-    case '>=': return distance >= value;
-    case '<=': return distance <= value;
-    case '==': return distance === value;
-    case 'between': return distance >= value.min && distance <= value.max;
-    default: return true;
+    case ">=":
+      return distance >= value;
+    case "<=":
+      return distance <= value;
+    case "==":
+      return distance === value;
+    case "between":
+      return distance >= value.min && distance <= value.max;
+    default:
+      return true;
   }
 };
 
 const checkPaceRule = (pace, operator, value) => {
   switch (operator) {
-    case '>=': return pace >= value;
-    case '<=': return pace <= value;
-    default: return true;
+    case ">=":
+      return pace >= value;
+    case "<=":
+      return pace <= value;
+    default:
+      return true;
   }
 };
 
 const checkElevationRule = (elevation, operator, value) => {
   switch (operator) {
-    case '>=': return elevation >= value;
-    case '<=': return elevation <= value;
-    default: return true;
+    case ">=":
+      return elevation >= value;
+    case "<=":
+      return elevation <= value;
+    default:
+      return true;
   }
 };
 
@@ -361,35 +399,37 @@ const formatDuration = (seconds) => {
 const formatPace = (seconds) => {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
-  return `${mins}:${secs.toString().padStart(2, '0')}/km`;
+  return `${mins}:${secs.toString().padStart(2, "0")}/km`;
 };
 
 // ===== GET LEADERBOARD =====
 export const getLeaderboard = async (eventId) => {
   try {
     const participantsQuery = query(
-      collection(db, 'eventParticipants'),
-      where('eventId', '==', eventId)
+      collection(db, "eventParticipants"),
+      where("eventId", "==", eventId)
     );
     const participantsSnap = await getDocs(participantsQuery);
 
     const leaderboard = [];
     for (const pDoc of participantsSnap.docs) {
       const participant = pDoc.data();
-      
+
       // Get user info
-      const userSnap = await getDoc(doc(db, 'users', participant.userId));
+      const userSnap = await getDoc(doc(db, "users", participant.userId));
       const user = userSnap.data();
 
       leaderboard.push({
         userId: participant.userId,
-        userName: user?.name || 'Unknown',
-        avatar: user?.avatarUrl || `https://i.pravatar.cc/150?u=${participant.userId}`,
+        userName: user?.name || "Unknown",
+        avatar:
+          user?.avatarUrl ||
+          `https://i.pravatar.cc/150?u=${participant.userId}`,
         totalPoints: participant.progress.totalPoints || 0,
         totalDistance: participant.progress.totalDistance || 0,
         totalActivities: participant.progress.totalActivities || 0,
         validActivities: participant.progress.validActivities || 0,
-        completionRate: participant.progress.completionRate || 0
+        completionRate: participant.progress.completionRate || 0,
       });
     }
 
@@ -403,7 +443,7 @@ export const getLeaderboard = async (eventId) => {
 
     return { success: true, data: leaderboard };
   } catch (error) {
-    console.error('Error getting leaderboard:', error);
+    console.error("Error getting leaderboard:", error);
     return { success: false, error: error.message };
   }
 };
@@ -412,30 +452,30 @@ export const getLeaderboard = async (eventId) => {
 export const getUserActivitiesForEvent = async (userId, eventId) => {
   try {
     // Get event dates
-    const eventSnap = await getDoc(doc(db, 'events', eventId));
+    const eventSnap = await getDoc(doc(db, "events", eventId));
     if (!eventSnap.exists()) {
-      return { success: false, error: 'Event not found' };
+      return { success: false, error: "Event not found" };
     }
 
     const event = eventSnap.data();
 
     // Get user's activities in event period
     const logsQuery = query(
-      collection(db, 'trackLogs'),
-      where('userId', '==', userId),
-      where('date', '>=', event.startDate),
-      where('date', '<=', event.endDate)
+      collection(db, "trackLogs"),
+      where("userId", "==", userId),
+      where("date", ">=", event.startDate),
+      where("date", "<=", event.endDate)
     );
     const logsSnap = await getDocs(logsQuery);
-    
-    const activities = logsSnap.docs.map(d => ({
+
+    const activities = logsSnap.docs.map((d) => ({
       id: d.id,
-      ...d.data()
+      ...d.data(),
     }));
 
     return { success: true, data: activities };
   } catch (error) {
-    console.error('Error getting user activities:', error);
+    console.error("Error getting user activities:", error);
     return { success: false, error: error.message };
   }
 };
@@ -444,14 +484,14 @@ export const getUserActivitiesForEvent = async (userId, eventId) => {
 export const isUserRegistered = async (eventId, userId) => {
   try {
     const q = query(
-      collection(db, 'eventParticipants'),
-      where('eventId', '==', eventId),
-      where('userId', '==', userId)
+      collection(db, "eventParticipants"),
+      where("eventId", "==", eventId),
+      where("userId", "==", userId)
     );
     const snap = await getDocs(q);
     return !snap.empty;
   } catch (error) {
-    console.error('Error checking registration:', error);
+    console.error("Error checking registration:", error);
     return false;
   }
 };

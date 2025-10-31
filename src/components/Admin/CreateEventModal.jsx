@@ -1,12 +1,22 @@
 // Modal tạo event với chọn rules từ thư viện
 
-import React, { useState, useEffect } from 'react';
-import { X, Plus, Check, Upload, Image as ImageIcon } from 'lucide-react';
-import { createEvent, getRules, getRuleGroups } from '../../services/firebase-service';
-import { doc, writeBatch, Timestamp, collection, updateDoc } from 'firebase/firestore';
-import { db } from '../../services/firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage } from '../../services/firebase';
+import React, { useState, useEffect } from "react";
+import { X, Plus, Check, Upload, Image as ImageIcon } from "lucide-react";
+import {
+  createEvent,
+  getRules,
+  getRuleGroups,
+} from "../../services/firebase-service";
+import {
+  doc,
+  writeBatch,
+  Timestamp,
+  collection,
+  updateDoc,
+} from "firebase/firestore";
+import { db } from "../../services/firebase";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { storage } from "../../services/firebase";
 
 const CreateEventModal = ({ onClose, onSuccess }) => {
   const [step, setStep] = useState(1); // 1: Basic Info, 2: Teams, 3: Select Rules, 4: Review
@@ -15,26 +25,25 @@ const CreateEventModal = ({ onClose, onSuccess }) => {
   const [rules, setRules] = useState([]);
   const [selectedRules, setSelectedRules] = useState([]);
   const [imageFile, setImageFile] = useState(null);
-  const [imagePreview, setImagePreview] = useState('');
+  const [imagePreview, setImagePreview] = useState("");
 
   const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    startDate: '',
-    endDate: '',
-    status: 'created',
+    name: "",
+    description: "",
+    startDate: "",
+    endDate: "",
+    status: "created",
     numTeams: 4,
     teamCapacity: 50,
-      teams: [], // ← THÊM DÒNG NÀY
+    teams: [], // ← THÊM DÒNG NÀY
     media: {
-      coverImage: ''
+      coverImage: "",
     },
     registration: {
       isOpen: true,
       maxParticipants: null,
-      currentParticipants: 0
-
-    }
+      currentParticipants: 0,
+    },
   });
 
   useEffect(() => {
@@ -44,7 +53,7 @@ const CreateEventModal = ({ onClose, onSuccess }) => {
   const loadRulesData = async () => {
     const [groupsRes, rulesRes] = await Promise.all([
       getRuleGroups(),
-      getRules()
+      getRules(),
     ]);
     if (groupsRes.success) setRuleGroups(groupsRes.data);
     if (rulesRes.success) setRules(rulesRes.data);
@@ -64,45 +73,50 @@ const CreateEventModal = ({ onClose, onSuccess }) => {
 
   const uploadImage = async (eventId) => {
     if (!imageFile) return null;
-    
+
     try {
       const storageRef = ref(storage, `events/${eventId}/cover.jpg`);
       await uploadBytes(storageRef, imageFile);
       const downloadURL = await getDownloadURL(storageRef);
       return downloadURL;
     } catch (error) {
-      console.error('Error uploading image:', error);
+      console.error("Error uploading image:", error);
       return null;
     }
   };
 
   const toggleRule = (ruleId) => {
-    setSelectedRules(prev => {
-      const exists = prev.find(r => r.ruleId === ruleId);
+    setSelectedRules((prev) => {
+      const exists = prev.find((r) => r.ruleId === ruleId);
       if (exists) {
-        return prev.filter(r => r.ruleId !== ruleId);
+        return prev.filter((r) => r.ruleId !== ruleId);
       } else {
-        const rule = rules.find(r => r.id === ruleId);
-        return [...prev, {
-          ruleId: ruleId,
-          order: prev.length + 1,
-          customization: {
-            isRequired: rule.defaults.isRequired,
-            points: rule.defaults.points,
-            weight: rule.defaults.weight,
-            customValue: rule.config.value
-          }
-        }];
+        const rule = rules.find((r) => r.id === ruleId);
+        return [
+          ...prev,
+          {
+            ruleId: ruleId,
+            order: prev.length + 1,
+            customization: {
+              isRequired: rule.defaults.isRequired,
+              points: rule.defaults.points,
+              weight: rule.defaults.weight,
+              customValue: rule.config.value,
+            },
+          },
+        ];
       }
     });
   };
 
   const updateRuleCustomization = (ruleId, field, value) => {
-    setSelectedRules(prev => prev.map(r => 
-      r.ruleId === ruleId 
-        ? { ...r, customization: { ...r.customization, [field]: value } }
-        : r
-    ));
+    setSelectedRules((prev) =>
+      prev.map((r) =>
+        r.ruleId === ruleId
+          ? { ...r, customization: { ...r.customization, [field]: value } }
+          : r
+      )
+    );
   };
 
   const handleSubmit = async () => {
@@ -116,19 +130,19 @@ const CreateEventModal = ({ onClose, onSuccess }) => {
       // Step 1: Create event
       const eventData = {
         ...formData,
-        createdBy: 'admin',
-        status: 'active',
+        createdBy: "admin",
+        status: "active",
         registration: {
           ...formData.registration,
           currentParticipants: 0,
-          registrationDeadline: formData.startDate
-        }
+          registrationDeadline: formData.startDate,
+        },
       };
 
       const eventResult = await createEvent(eventData);
-      
+
       if (!eventResult.success) {
-        alert('Lỗi tạo sự kiện: ' + eventResult.error);
+        alert("Lỗi tạo sự kiện: " + eventResult.error);
         setLoading(false);
         return;
       }
@@ -139,8 +153,8 @@ const CreateEventModal = ({ onClose, onSuccess }) => {
       if (imageFile) {
         const imageUrl = await uploadImage(eventId);
         if (imageUrl) {
-          await updateDoc(doc(db, 'events', eventId), {
-            'media.coverImage': imageUrl
+          await updateDoc(doc(db, "events", eventId), {
+            "media.coverImage": imageUrl,
           });
         }
       }
@@ -148,26 +162,26 @@ const CreateEventModal = ({ onClose, onSuccess }) => {
       // Step 3: Create eventRules
       if (selectedRules.length > 0) {
         const batch = writeBatch(db);
-        selectedRules.forEach(rule => {
-          const docRef = doc(collection(db, 'eventRules'));
+        selectedRules.forEach((rule) => {
+          const docRef = doc(collection(db, "eventRules"));
           batch.set(docRef, {
             eventId: eventId,
             ruleId: rule.ruleId,
             order: rule.order,
             customization: rule.customization,
             addedAt: Timestamp.now(),
-            addedBy: 'admin'
+            addedBy: "admin",
           });
         });
         await batch.commit();
       }
 
-      alert('✅ Tạo sự kiện thành công!');
+      alert("✅ Tạo sự kiện thành công!");
       onSuccess();
       onClose();
     } catch (error) {
-      console.error('Error creating event:', error);
-      alert('Lỗi: ' + error.message);
+      console.error("Error creating event:", error);
+      alert("Lỗi: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -177,7 +191,7 @@ const CreateEventModal = ({ onClose, onSuccess }) => {
   const BasicInfoStep = () => (
     <div className="space-y-4">
       <h3 className="text-lg font-semibold text-gray-900">Thông tin cơ bản</h3>
-      
+
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
           Tên sự kiện <span className="text-red-500">*</span>
@@ -187,18 +201,22 @@ const CreateEventModal = ({ onClose, onSuccess }) => {
           required
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
           value={formData.name}
-          onChange={(e) => setFormData({...formData, name: e.target.value})}
+          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
           placeholder="VD: Thử thách 100km tháng 12"
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Mô tả</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Mô tả
+        </label>
         <textarea
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
           rows="4"
           value={formData.description}
-          onChange={(e) => setFormData({...formData, description: e.target.value})}
+          onChange={(e) =>
+            setFormData({ ...formData, description: e.target.value })
+          }
           placeholder="Mô tả chi tiết về sự kiện..."
         />
       </div>
@@ -213,7 +231,9 @@ const CreateEventModal = ({ onClose, onSuccess }) => {
             required
             className="w-full px-3 py-2 border border-gray-300 rounded-md"
             value={formData.startDate}
-            onChange={(e) => setFormData({...formData, startDate: e.target.value})}
+            onChange={(e) =>
+              setFormData({ ...formData, startDate: e.target.value })
+            }
           />
         </div>
         <div>
@@ -225,21 +245,29 @@ const CreateEventModal = ({ onClose, onSuccess }) => {
             required
             className="w-full px-3 py-2 border border-gray-300 rounded-md"
             value={formData.endDate}
-            onChange={(e) => setFormData({...formData, endDate: e.target.value})}
+            onChange={(e) =>
+              setFormData({ ...formData, endDate: e.target.value })
+            }
           />
         </div>
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Ảnh bìa sự kiện</label>
-        
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Ảnh bìa sự kiện
+        </label>
+
         {imagePreview ? (
           <div className="relative">
-            <img src={imagePreview} alt="Preview" className="w-full h-48 object-cover rounded-lg" />
+            <img
+              src={imagePreview}
+              alt="Preview"
+              className="w-full h-48 object-cover rounded-lg"
+            />
             <button
               onClick={() => {
                 setImageFile(null);
-                setImagePreview('');
+                setImagePreview("");
               }}
               className="absolute top-2 right-2 bg-red-500 text-white p-2 rounded-full hover:bg-red-600"
             >
@@ -270,149 +298,185 @@ const CreateEventModal = ({ onClose, onSuccess }) => {
         <input
           type="number"
           className="w-full px-3 py-2 border border-gray-300 rounded-md"
-          value={formData.registration.maxParticipants || ''}
-          onChange={(e) => setFormData({
-            ...formData, 
-            registration: {...formData.registration, maxParticipants: e.target.value ? parseInt(e.target.value) : null}
-          })}
+          value={formData.registration.maxParticipants || ""}
+          onChange={(e) =>
+            setFormData({
+              ...formData,
+              registration: {
+                ...formData.registration,
+                maxParticipants: e.target.value
+                  ? parseInt(e.target.value)
+                  : null,
+              },
+            })
+          }
           placeholder="Để trống = không giới hạn"
         />
       </div>
     </div>
   );
-// Step 2: Teams Configuration
-const TeamsStep = () => {
-  // Generate teams khi numTeams thay đổi
-  useEffect(() => {
-    const newTeams = [];
-    for (let i = 1; i <= formData.numTeams; i++) {
-      const existingTeam = formData.teams[i - 1];
-      newTeams.push(existingTeam || {
-        id: `team_${i}`,
-        name: `Team ${i}`,
-        members: [],
-        capacity: parseInt(formData.teamCapacity),
-        currentMembers: 0
-      });
-    }
-    setFormData(prev => ({ ...prev, teams: newTeams }));
-  }, [formData.numTeams, formData.teamCapacity]);
+  // Step 2: Teams Configuration
+  const TeamsStep = () => {
+    // Generate teams khi numTeams thay đổi
+    useEffect(() => {
+      const newTeams = [];
+      for (let i = 1; i <= formData.numTeams; i++) {
+        const existingTeam = formData.teams[i - 1];
+        newTeams.push(
+          existingTeam || {
+            id: `team_${i}`,
+            name: `Team ${i}`,
+            members: [],
+            capacity: parseInt(formData.teamCapacity),
+            currentMembers: 0,
+          }
+        );
+      }
+      setFormData((prev) => ({ ...prev, teams: newTeams }));
+    }, [formData.numTeams, formData.teamCapacity]);
 
-  const updateTeamName = (index, name) => {
-    const newTeams = [...formData.teams];
-    newTeams[index] = { ...newTeams[index], name };
-    setFormData({ ...formData, teams: newTeams });
-  };
+    const updateTeamName = (index, name) => {
+      const newTeams = [...formData.teams];
+      newTeams[index] = { ...newTeams[index], name };
+      setFormData({ ...formData, teams: newTeams });
+    };
 
-  const updateTeamCapacity = (index, capacity) => {
-    const newTeams = [...formData.teams];
-    newTeams[index] = { ...newTeams[index], capacity: parseInt(capacity) };
-    setFormData({ ...formData, teams: newTeams });
-  };
+    const updateTeamCapacity = (index, capacity) => {
+      const newTeams = [...formData.teams];
+      newTeams[index] = { ...newTeams[index], capacity: parseInt(capacity) };
+      setFormData({ ...formData, teams: newTeams });
+    };
 
-  return (
-    <div className="space-y-4">
-      <h3 className="text-lg font-semibold text-gray-900">Cấu hình Teams</h3>
-      <p className="text-sm text-gray-600">
-        Thiết lập số lượng teams và tùy chỉnh tên, số người cho từng team
-      </p>
+    return (
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold text-gray-900">Cấu hình Teams</h3>
+        <p className="text-sm text-gray-600">
+          Thiết lập số lượng teams và tùy chỉnh tên, số người cho từng team
+        </p>
 
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Số lượng Teams <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="number"
-            min="1"
-            max="20"
-            required
-            className="w-full px-3 py-2 border border-gray-300 rounded-md"
-            value={formData.numTeams}
-            onChange={(e) => setFormData({...formData, numTeams: parseInt(e.target.value)})}
-          />
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Số lượng Teams <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="number"
+              min="1"
+              max="20"
+              required
+              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              value={formData.numTeams}
+              onChange={(e) =>
+                setFormData({ ...formData, numTeams: parseInt(e.target.value) })
+              }
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Số người/Team (mặc định) <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="number"
+              min="1"
+              required
+              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              value={formData.teamCapacity}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  teamCapacity: parseInt(e.target.value),
+                })
+              }
+            />
+          </div>
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Số người/Team (mặc định) <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="number"
-            min="1"
-            required
-            className="w-full px-3 py-2 border border-gray-300 rounded-md"
-            value={formData.teamCapacity}
-            onChange={(e) => setFormData({...formData, teamCapacity: parseInt(e.target.value)})}
-          />
-        </div>
-      </div>
 
-      <div className="space-y-3 max-h-96 overflow-y-auto">
-        {formData.teams.map((team, index) => (
-          <div key={team.id} className="border border-gray-200 rounded-lg p-4 bg-white">
-            <div className="grid grid-cols-3 gap-4">
-              <div className="col-span-2">
-                <label className="block text-xs text-gray-600 mb-1">
-                  Tên Team {index + 1}
-                </label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  value={team.name}
-                  onChange={(e) => updateTeamName(index, e.target.value)}
-                  placeholder={`Team ${index + 1}`}
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-600 mb-1">
-                  Số người tối đa
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  value={team.capacity}
-                  onChange={(e) => updateTeamCapacity(index, e.target.value)}
-                />
+        <div className="space-y-3 max-h-96 overflow-y-auto">
+          {formData.teams.map((team, index) => (
+            <div
+              key={team.id}
+              className="border border-gray-200 rounded-lg p-4 bg-white"
+            >
+              <div className="grid grid-cols-3 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-xs text-gray-600 mb-1">
+                    Tên Team {index + 1}
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    value={team.name}
+                    onChange={(e) => updateTeamName(index, e.target.value)}
+                    placeholder={`Team ${index + 1}`}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">
+                    Số người tối đa
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    value={team.capacity}
+                    onChange={(e) => updateTeamCapacity(index, e.target.value)}
+                  />
+                </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
 
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-        <p className="text-sm text-blue-800">
-          ✓ Đã cấu hình <strong>{formData.teams.length}</strong> teams với tổng <strong>{formData.teams.reduce((sum, t) => sum + t.capacity, 0)}</strong> chỗ
-        </p>
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <p className="text-sm text-blue-800">
+            ✓ Đã cấu hình <strong>{formData.teams.length}</strong> teams với
+            tổng{" "}
+            <strong>
+              {formData.teams.reduce((sum, t) => sum + t.capacity, 0)}
+            </strong>{" "}
+            chỗ
+          </p>
+        </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
   // Step 2: Select Rules
   const SelectRulesStep = () => (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold text-gray-900 mb-2">Chọn Rules cho sự kiện</h3>
+      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+        Chọn Rules cho sự kiện
+      </h3>
       <p className="text-sm text-gray-600 mb-4">
         Chọn các rules từ thư viện. Bạn có thể tùy chỉnh giá trị cho từng rule.
       </p>
 
       <div className="space-y-6 max-h-96 overflow-y-auto">
-        {ruleGroups.map(group => {
-          const groupRules = rules.filter(r => r.groupId === group.id);
+        {ruleGroups.map((group) => {
+          const groupRules = rules.filter((r) => r.groupId === group.id);
           if (groupRules.length === 0) return null;
 
           return (
-            <div key={group.id} className="border border-gray-200 rounded-lg p-4">
+            <div
+              key={group.id}
+              className="border border-gray-200 rounded-lg p-4"
+            >
               <h4 className="font-semibold text-gray-900 mb-3">
                 {group.icon} {group.name}
               </h4>
               <div className="space-y-2">
-                {groupRules.map(rule => {
-                  const isSelected = selectedRules.some(r => r.ruleId === rule.id);
-                  const selectedRule = selectedRules.find(r => r.ruleId === rule.id);
+                {groupRules.map((rule) => {
+                  const isSelected = selectedRules.some(
+                    (r) => r.ruleId === rule.id
+                  );
+                  const selectedRule = selectedRules.find(
+                    (r) => r.ruleId === rule.id
+                  );
 
                   return (
-                    <div key={rule.id} className="border border-gray-200 rounded-lg p-3">
+                    <div
+                      key={rule.id}
+                      className="border border-gray-200 rounded-lg p-3"
+                    >
                       <div className="flex items-start gap-3">
                         <input
                           type="checkbox"
@@ -421,35 +485,63 @@ const TeamsStep = () => {
                           className="mt-1"
                         />
                         <div className="flex-1">
-                          <p className="font-medium text-gray-900">{rule.name}</p>
-                          <p className="text-sm text-gray-600">{rule.description}</p>
-                          
+                          <p className="font-medium text-gray-900">
+                            {rule.name}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            {rule.description}
+                          </p>
+
                           {isSelected && (
                             <div className="mt-3 grid grid-cols-2 gap-3 bg-blue-50 p-3 rounded">
                               <div>
-                                <label className="text-xs text-gray-600">Giá trị</label>
+                                <label className="text-xs text-gray-600">
+                                  Giá trị
+                                </label>
                                 <input
                                   type="number"
                                   className="w-full px-2 py-1 text-sm border rounded"
                                   value={selectedRule.customization.customValue}
-                                  onChange={(e) => updateRuleCustomization(rule.id, 'customValue', parseFloat(e.target.value))}
+                                  onChange={(e) =>
+                                    updateRuleCustomization(
+                                      rule.id,
+                                      "customValue",
+                                      parseFloat(e.target.value)
+                                    )
+                                  }
                                 />
                               </div>
                               <div>
-                                <label className="text-xs text-gray-600">Điểm</label>
+                                <label className="text-xs text-gray-600">
+                                  Điểm
+                                </label>
                                 <input
                                   type="number"
                                   className="w-full px-2 py-1 text-sm border rounded"
                                   value={selectedRule.customization.points}
-                                  onChange={(e) => updateRuleCustomization(rule.id, 'points', parseInt(e.target.value))}
+                                  onChange={(e) =>
+                                    updateRuleCustomization(
+                                      rule.id,
+                                      "points",
+                                      parseInt(e.target.value)
+                                    )
+                                  }
                                 />
                               </div>
                               <div className="col-span-2">
                                 <label className="flex items-center gap-2 text-sm">
                                   <input
                                     type="checkbox"
-                                    checked={selectedRule.customization.isRequired}
-                                    onChange={(e) => updateRuleCustomization(rule.id, 'isRequired', e.target.checked)}
+                                    checked={
+                                      selectedRule.customization.isRequired
+                                    }
+                                    onChange={(e) =>
+                                      updateRuleCustomization(
+                                        rule.id,
+                                        "isRequired",
+                                        e.target.checked
+                                      )
+                                    }
                                   />
                                   Bắt buộc
                                 </label>
@@ -478,7 +570,9 @@ const TeamsStep = () => {
   // Step 3: Review
   const ReviewStep = () => (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold text-gray-900 mb-2">Xem lại thông tin</h3>
+      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+        Xem lại thông tin
+      </h3>
 
       <div className="bg-gray-50 rounded-lg p-4 space-y-3">
         <div>
@@ -487,7 +581,9 @@ const TeamsStep = () => {
         </div>
         <div>
           <p className="text-sm text-gray-600">Thời gian</p>
-          <p className="font-semibold">{formData.startDate} → {formData.endDate}</p>
+          <p className="font-semibold">
+            {formData.startDate} → {formData.endDate}
+          </p>
         </div>
         {formData.description && (
           <div>
@@ -500,20 +596,27 @@ const TeamsStep = () => {
           <p className="font-semibold">{selectedRules.length} rules</p>
         </div>
         <div>
-  <p className="text-sm text-gray-600">Số teams</p>
-  <p className="font-semibold">{formData.teams.length} teams</p>
-  <div className="mt-2 space-y-1">
-    {formData.teams.map((team, idx) => (
-      <div key={team.id} className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded">
-        {team.name}: {team.capacity} người
-      </div>
-    ))}
-  </div>
-</div>
+          <p className="text-sm text-gray-600">Số teams</p>
+          <p className="font-semibold">{formData.teams.length} teams</p>
+          <div className="mt-2 space-y-1">
+            {formData.teams.map((team, idx) => (
+              <div
+                key={team.id}
+                className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded"
+              >
+                {team.name}: {team.capacity} người
+              </div>
+            ))}
+          </div>
+        </div>
         {imagePreview && (
           <div>
             <p className="text-sm text-gray-600 mb-2">Ảnh bìa</p>
-            <img src={imagePreview} alt="Preview" className="w-full h-32 object-cover rounded" />
+            <img
+              src={imagePreview}
+              alt="Preview"
+              className="w-full h-32 object-cover rounded"
+            />
           </div>
         )}
       </div>
@@ -531,23 +634,63 @@ const TeamsStep = () => {
       <div className="bg-white rounded-lg shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Tạo Sự Kiện Mới</h2>
-            
-<div className="w-full mb-3">
-  <div className="flex items-center justify-between mb-2">
-    <div className="flex items-center gap-3">
-      <div className={`px-3 py-1 rounded-full text-sm font-medium ${step===1 ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>1</div>
-      <div className={`px-3 py-1 rounded-full text-sm font-medium ${step===2 ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>2</div>
-      <div className={`px-3 py-1 rounded-full text-sm font-medium ${step===3 ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}>3</div>
-      <div className="text-sm text-gray-600 ml-3">Bước {step} trên 3</div>
-    </div>
-    <div className="text-sm text-gray-500"> {step === 1 ? 'Thông tin' : step === 2 ? 'Chọn rules' : 'Xác nhận'} </div>
-  </div>
-  <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden">
-    <div className="h-2 rounded-full" style={{ width: `${(step/3)*100}%`, backgroundColor: '#2563eb' }}></div>
-  </div>
-</div>
+            <h2 className="text-2xl font-bold text-gray-900">
+              Tạo Sự Kiện Mới
+            </h2>
 
+            <div className="w-full mb-3">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`px-3 py-1 rounded-full text-sm font-medium ${
+                      step === 1
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-100 text-gray-700"
+                    }`}
+                  >
+                    1
+                  </div>
+                  <div
+                    className={`px-3 py-1 rounded-full text-sm font-medium ${
+                      step === 2
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-100 text-gray-700"
+                    }`}
+                  >
+                    2
+                  </div>
+                  <div
+                    className={`px-3 py-1 rounded-full text-sm font-medium ${
+                      step === 3
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-100 text-gray-700"
+                    }`}
+                  >
+                    3
+                  </div>
+                  <div className="text-sm text-gray-600 ml-3">
+                    Bước {step} trên 3
+                  </div>
+                </div>
+                <div className="text-sm text-gray-500">
+                  {" "}
+                  {step === 1
+                    ? "Thông tin"
+                    : step === 2
+                    ? "Chọn rules"
+                    : "Xác nhận"}{" "}
+                </div>
+              </div>
+              <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden">
+                <div
+                  className="h-2 rounded-full"
+                  style={{
+                    width: `${(step / 3) * 100}%`,
+                    backgroundColor: "#2563eb",
+                  }}
+                ></div>
+              </div>
+            </div>
           </div>
           <button
             onClick={onClose}
@@ -559,36 +702,42 @@ const TeamsStep = () => {
 
         <div className="p-6">
           {/* Progress Steps */}
-<div className="flex items-center justify-between mb-8">
-  {[
-    { num: 1, label: 'Thông tin' },
-    { num: 2, label: 'Teams' },
-    { num: 3, label: 'Chọn Rules' },
-    { num: 4, label: 'Xem lại' }
-  ].map((s, idx) => (
-    <React.Fragment key={s.num}>
-      <div className="flex flex-col items-center">
-        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
-          step >= s.num ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
-        }`}>
-          {step > s.num ? <Check className="w-5 h-5" /> : s.num}
-        </div>
-        <p className="text-xs mt-2 text-gray-600">{s.label}</p>
-      </div>
-      {idx < 3 && (
-        <div className={`flex-1 h-1 mx-4 ${
-          step > s.num ? 'bg-blue-600' : 'bg-gray-200'
-        }`} />
-      )}
-    </React.Fragment>
-  ))}
-</div>
+          <div className="flex items-center justify-between mb-8">
+            {[
+              { num: 1, label: "Thông tin" },
+              { num: 2, label: "Teams" },
+              { num: 3, label: "Chọn Rules" },
+              { num: 4, label: "Xem lại" },
+            ].map((s, idx) => (
+              <React.Fragment key={s.num}>
+                <div className="flex flex-col items-center">
+                  <div
+                    className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
+                      step >= s.num
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-200 text-gray-600"
+                    }`}
+                  >
+                    {step > s.num ? <Check className="w-5 h-5" /> : s.num}
+                  </div>
+                  <p className="text-xs mt-2 text-gray-600">{s.label}</p>
+                </div>
+                {idx < 3 && (
+                  <div
+                    className={`flex-1 h-1 mx-4 ${
+                      step > s.num ? "bg-blue-600" : "bg-gray-200"
+                    }`}
+                  />
+                )}
+              </React.Fragment>
+            ))}
+          </div>
 
           {/* Step Content */}
-{step === 1 && <BasicInfoStep />}
-{step === 2 && <TeamsStep />}
-{step === 3 && <SelectRulesStep />}
-{step === 4 && <ReviewStep />}
+          {step === 1 && <BasicInfoStep />}
+          {step === 2 && <TeamsStep />}
+          {step === 3 && <SelectRulesStep />}
+          {step === 4 && <ReviewStep />}
 
           {/* Actions */}
           <div className="flex gap-3 pt-6 mt-6 border-t border-gray-200">
@@ -602,12 +751,20 @@ const TeamsStep = () => {
             )}
             <button
               onClick={handleSubmit}
-              disabled={loading || (step === 1 && (!formData.name || !formData.startDate || !formData.endDate))}
+              disabled={
+                loading ||
+                (step === 1 &&
+                  (!formData.name || !formData.startDate || !formData.endDate))
+              }
               className={`flex-1 py-2 px-4 rounded-lg font-semibold text-white ${
-                loading ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'
+                loading ? "bg-gray-400" : "bg-blue-600 hover:bg-blue-700"
               } disabled:opacity-50`}
             >
-{loading ? 'Đang xử lý...' : step === 4 ? '✓ Tạo sự kiện' : 'Tiếp tục →'}
+              {loading
+                ? "Đang xử lý..."
+                : step === 4
+                ? "✓ Tạo sự kiện"
+                : "Tiếp tục →"}
             </button>
           </div>
         </div>

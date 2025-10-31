@@ -1,5 +1,5 @@
-import { getStravaActivities } from './strava-service';
-import { saveTrackLog } from './firebase-service';
+import { getStravaActivities } from "./strava-service";
+import { saveTrackLog } from "./firebase-service";
 
 export const syncUserActivities = async (user, startDate, endDate) => {
   try {
@@ -28,19 +28,21 @@ export const syncUserActivities = async (user, startDate, endDate) => {
         userId: user.uid,
         stravaActivityId: activity.id.toString(),
         name: activity.name,
-        date: activity.start_date.split('T')[0],
+        date: activity.start_date.split("T")[0],
         distance: activity.distance / 1000, // meters to km
         duration: {
           movingTime: activity.moving_time,
-          elapsedTime: activity.elapsed_time
+          elapsedTime: activity.elapsed_time,
         },
         pace: {
-          average: Math.round(activity.moving_time / (activity.distance / 1000))
+          average: Math.round(
+            activity.moving_time / (activity.distance / 1000)
+          ),
         },
         elevation: {
-          total: Math.round(activity.total_elevation_gain)
+          total: Math.round(activity.total_elevation_gain),
         },
-        type: activity.type
+        type: activity.type,
       };
 
       const result = await saveTrackLog(trackLog);
@@ -50,10 +52,10 @@ export const syncUserActivities = async (user, startDate, endDate) => {
     return {
       success: true,
       total: activities.length,
-      saved: savedCount
+      saved: savedCount,
     };
   } catch (error) {
-    console.error('Error syncing activities:', error);
+    console.error("Error syncing activities:", error);
     return { success: false, error: error.message };
   }
 };
