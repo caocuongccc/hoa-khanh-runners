@@ -250,6 +250,14 @@ const CreateEventModal = ({ onClose, onSuccess, eventData }) => {
 
     setLoading(true);
     try {
+      // Thêm metadata cho teams
+      const teamsWithMetadata = formData.teams.map((team) => ({
+        id: team.id,
+        name: team.name,
+        capacity: team.capacity,
+        currentMembers: 0, // ← QUAN TRỌNG: Khởi tạo currentMembers
+        members: [], // ← Khởi tạo members array rỗng
+      }));
       // QUAN TRỌNG: Đảm bảo teams được include
       const eventPayload = {
         name: formData.name,
@@ -261,7 +269,7 @@ const CreateEventModal = ({ onClose, onSuccess, eventData }) => {
         startDateTime: `${formData.startDate}T${formData.startTime || "00:00"}`,
         endDateTime: `${formData.endDate}T${formData.endTime || "23:59"}`,
         status: "created",
-        teams: formData.teams || [], // ← ĐẢM BẢO LUÔN CÓ
+        teams: teamsWithMetadata, // ← Dùng teams có metadata
         isPrivate: formData.isPrivate || false,
         password: formData.password || "",
         media: {
@@ -624,16 +632,22 @@ const CreateEventModal = ({ onClose, onSuccess, eventData }) => {
               required
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
               value={formData.teamCapacity}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  teamCapacity: parseInt(e.target.value),
-                })
-              }
+              onChange={(e) => {
+                const newCapacity = parseInt(e.target.value);
+                // ← CẬP NHẬT CAPACITY CHO TẤT CẢ TEAMS
+                const updatedTeams = formData.teams.map((team) => ({
+                  ...team,
+                  capacity: newCapacity,
+                }));
+                setFormData((prev) => ({
+                  ...prev,
+                  teamCapacity: newCapacity,
+                  teams: updatedTeams,
+                }));
+              }}
             />
           </div>
         </div>
-
         <div className="space-y-3 max-h-96 overflow-y-auto">
           {formData.teams.map((team, index) => (
             <div
@@ -930,10 +944,10 @@ const CreateEventModal = ({ onClose, onSuccess, eventData }) => {
                 <div className="text-sm text-gray-500">
                   {" "}
                   {step === 1
-                    ? "Thông tin"
+                    ? " Thông tin"
                     : step === 2
-                    ? "Chọn rules"
-                    : "Xác nhận"}{" "}
+                    ? " Chọn rules"
+                    : " Xác nhận"}{" "}
                 </div>
               </div>
               <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden">

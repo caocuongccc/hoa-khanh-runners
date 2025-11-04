@@ -16,8 +16,12 @@ export async function createEvent(data) {
   try {
     const ref = await addDoc(collection(db, "events"), {
       ...data,
+      teams: data.teams || [], // ← Đảm bảo teams được lưu
+      updatedAt: new Date().toISOString(),
       createdAt: new Date().toISOString(),
     });
+    console.log("✅ Event created with teams:", data.teams); // ← Log để check
+
     return { success: true, id: ref.id };
   } catch (error) {
     console.error("Error creating event:", error);
@@ -29,8 +33,21 @@ export async function getEvents() {
   try {
     const q = query(collection(db, "events"));
     const snap = await getDocs(q);
-    const events = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-    console.log(events);
+    const events = snap.docs.map((d) => {
+      const data = { id: d.id, ...d.data() };
+      
+      // ✅ Đảm bảo teams luôn tồn tại
+      if (!data.teams) {
+        console.warn(`⚠️ Event ${d.id} missing teams field`);
+        data.teams = [];
+      }
+      
+      return data;
+    });
+    
+    console.log("📥 Fetched events:", events);
+    console.log("👥 First event teams:", events[0]?.teams); // ← SỬA LẠI
+    
     return { success: true, data: events };
   } catch (error) {
     console.error("Error getting events:", error);
@@ -42,8 +59,23 @@ export async function getEventById(id) {
   try {
     const ref = doc(db, "events", id);
     const s = await getDoc(ref);
-    if (!s.exists()) return { success: false, error: "Event not found" };
-    return { success: true, data: { id: s.id, ...s.data() } };
+    
+    if (!s.exists()) {
+      return { success: false, error: "Event not found" };
+    }
+    
+    const eventData = { id: s.id, ...s.data() };
+    
+    // ✅ Đảm bảo teams tồn tại
+    if (!eventData.teams) {
+      console.warn(`⚠️ Event ${id} missing teams field`);
+      eventData.teams = [];
+    }
+    
+    console.log("📥 Fetched event by ID:", eventData);
+    console.log("👥 Teams:", eventData.teams);
+    
+    return { success: true, data: eventData };
   } catch (error) {
     console.error("Error getting event:", error);
     return { success: false, error: error.message };

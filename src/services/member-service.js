@@ -9,6 +9,7 @@ import {
   updateDoc,
   Timestamp,
   writeBatch,
+  runTransaction,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { getStravaActivities } from "./strava-service";
@@ -16,7 +17,9 @@ import { getStravaActivities } from "./strava-service";
 // ===== EVENT REGISTRATION =====
 export const registerForEvent = async (eventId, userId, userName, teamId) => {
   try {
-    // Check if already registered
+    console.log("📝 Starting registration:", { eventId, userId, userName, teamId });
+
+    // ✅ 1. Check if already registered
     const q = query(
       collection(db, "eventParticipants"),
       where("eventId", "==", eventId),
@@ -25,55 +28,93 @@ export const registerForEvent = async (eventId, userId, userName, teamId) => {
     const existing = await getDocs(q);
 
     if (!existing.empty) {
+      console.log("⚠️ User already registered");
       return { success: false, error: "Đã đăng ký sự kiện này rồi" };
     }
 
-    // Create participant
-    await addDoc(collection(db, "eventParticipants"), {
-      eventId,
-      userId,
-      userName,
-      teamId,  // ← THÊM
-      status: "active",
-      registeredAt: Timestamp.now(),
-      progress: {
-        totalDistance: 0,
-        totalActivities: 0,
-        totalElevation: 0,
-        validActivities: 0,
-        completionRate: 0,
-        currentRank: 0,
-        totalPoints: 0,
-      },
-      rulesCompliance: [],
-    });
-
-    // Update event participant count
+    // ✅ 2. Get event data để check team capacity
     const eventRef = doc(db, "events", eventId);
     const eventSnap = await getDoc(eventRef);
-    const currentCount = eventSnap.data().registration.currentParticipants || 0;
 
-    await updateDoc(eventRef, {
-      "registration.currentParticipants": currentCount + 1,
+    if (!eventSnap.exists()) {
+      return { success: false, error: "Sự kiện không tồn tại" };
+    }
+
+    const eventData = eventSnap.data();
+    const teams = eventData.teams || [];
+
+    console.log("📥 Event data:", eventData);
+    console.log("👥 Teams:", teams);
+
+    // ✅ 3. Check team capacity
+    const selectedTeam = teams.find(t => t.id === teamId);
+    if (!selectedTeam) {
+      return { success: false, error: "Team không tồn tại" };
+    }
+
+    if (selectedTeam.currentMembers >= selectedTeam.capacity) {
+      return { success: false, error: "Team đã đầy" };
+    }
+
+    console.log("✅ Team available:", selectedTeam);
+
+    // ✅ 4. Use transaction để đảm bảo atomic
+    await runTransaction(db, async (transaction) => {
+      // 4.1. Create participant
+      const participantRef = doc(collection(db, "eventParticipants"));
+      transaction.set(participantRef, {
+        eventId,
+        userId,
+        userName,
+        teamId,
+        status: "active",
+        registeredAt: Timestamp.now(),
+        progress: {
+          totalDistance: 0,
+          totalActivities: 0,
+          totalElevation: 0,
+          validActivities: 0,
+          completionRate: 0,
+          currentRank: 0,
+          totalPoints: 0,
+        },
+        rulesCompliance: [],
+      });
+
+      console.log("✅ Created participant document");
+
+      // 4.2. Update event participant count
+      const currentCount = eventData.registration?.currentParticipants || 0;
+      transaction.update(eventRef, {
+        "registration.currentParticipants": currentCount + 1,
+      });
+
+      console.log("✅ Updated participant count:", currentCount + 1);
+
+      // 4.3. Update team members
+      const updatedTeams = teams.map(team => {
+        if (team.id === teamId) {
+          return {
+            ...team,
+            currentMembers: (team.currentMembers || 0) + 1,
+            members: [...(team.members || []), { userId, userName }]
+          };
+        }
+        return team;
+      });
+
+      transaction.update(eventRef, {
+        teams: updatedTeams
+      });
+
+      console.log("✅ Updated teams:", updatedTeams);
     });
 
-    // Update team member count
-    const teams = eventSnap.data().teams || [];
-    const updatedTeams = teams.map(team => {
-      if (team.id === teamId) {
-        return {
-          ...team,
-          currentMembers: (team.currentMembers || 0) + 1,
-          members: [...(team.members || []), { userId, userName }]
-        };
-      }
-      return team;
-    });
-    await updateDoc(eventRef, { teams: updatedTeams });
-    
+    console.log("🎉 Registration successful!");
     return { success: true };
+
   } catch (error) {
-    console.error("Error registering for event:", error);
+    console.error("❌ Error registering for event:", error);
     return { success: false, error: error.message };
   }
 };

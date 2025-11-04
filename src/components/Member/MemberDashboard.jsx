@@ -10,10 +10,6 @@ import {
   Activity,
   Home,
   ChevronRight,
-  Award,
-  Heart,
-  Share2,
-  X,
 } from "lucide-react";
 import { getEvents } from "../../services/firebase-service";
 import { getStravaAuthUrl } from "../../services/strava-service";
@@ -41,16 +37,14 @@ const MemberDashboard = ({ user, onLogout }) => {
     setLoading(true);
     const result = await getEvents();
     if (result.success) {
-      console.log("📦 Loaded events:", result.data); // ← LOG ĐỂ CHECK
-
-      // Lọc các events active và sắp xếp theo ngày tạo mới nhất
-      const activeEvents = result.data
-        //.filter(e => e.status === 'active' || e.status === 'pending')
-        .sort((a, b) => {
-          // Sắp xếp theo startDate, mới nhất lên đầu
-          return new Date(b.startDate) - new Date(a.startDate);
-        });
+      const activeEvents = result.data.sort((a, b) => {
+        return new Date(b.startDate) - new Date(a.startDate);
+      });
       setEvents(activeEvents);
+      
+      // ✅ Log để debug
+      console.log("📥 Loaded events:", activeEvents);
+      console.log("👥 First event teams:", activeEvents[0]?.teams);
     }
     setLoading(false);
   };
@@ -92,6 +86,15 @@ const MemberDashboard = ({ user, onLogout }) => {
   const handleLogout = async () => {
     await logoutUser();
     onLogout();
+  };
+
+  // ✅ Hàm mở modal đăng ký - QUAN TRỌNG
+  const handleRegister = (event) => {
+    console.log("🎯 Opening registration modal for event:", event);
+    console.log("👥 Event teams:", event.teams);
+    
+    setRegisteringEvent(event);
+    setShowRegisterModal(true);
   };
 
   const formatPace = (seconds) => {
@@ -278,13 +281,14 @@ const MemberDashboard = ({ user, onLogout }) => {
             {events.slice(0, 3).map((event) => (
               <div
                 key={event.id}
-                className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-shadow cursor-pointer"
-                onClick={() => {
-                  setSelectedEvent(event);
-                  setCurrentPage("event-detail");
-                }}
+                className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-shadow"
               >
-                <div className="relative h-48">
+                <div className="relative h-48 cursor-pointer"
+                  onClick={() => {
+                    setSelectedEvent(event);
+                    setCurrentPage("event-detail");
+                  }}
+                >
                   <img
                     src={
                       event.media?.coverImage ||
@@ -321,8 +325,15 @@ const MemberDashboard = ({ user, onLogout }) => {
                       {event.registration?.currentParticipants || 0}
                     </span>
                   </div>
-                  <button className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">
-                    Xem chi tiết
+                  {/* ✅ FIX: Gọi handleRegister với event */}
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRegister(event);
+                    }}
+                    className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700"
+                  >
+                    Đăng ký tham gia
                   </button>
                 </div>
               </div>
@@ -367,13 +378,15 @@ const MemberDashboard = ({ user, onLogout }) => {
           {events.map((event) => (
             <div
               key={event.id}
-              className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-shadow cursor-pointer"
-              onClick={() => {
-                setSelectedEvent(event);
-                setCurrentPage("event-detail");
-              }}
+              className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-shadow"
             >
-              <div className="relative h-48">
+              <div 
+                className="relative h-48 cursor-pointer"
+                onClick={() => {
+                  setSelectedEvent(event);
+                  setCurrentPage("event-detail");
+                }}
+              >
                 <img
                   src={
                     event.media?.coverImage ||
@@ -402,7 +415,14 @@ const MemberDashboard = ({ user, onLogout }) => {
                     </span>
                   </div>
                 </div>
-                <button className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">
+                {/* ✅ FIX: Gọi handleRegister với event */}
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleRegister(event);
+                  }}
+                  className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700"
+                >
                   Đăng ký tham gia
                 </button>
               </div>
@@ -534,12 +554,10 @@ const MemberDashboard = ({ user, onLogout }) => {
               <p className="text-sm opacity-90 mb-4">
                 Kết nối Strava và bắt đầu challenge cùng cộng đồng
               </p>
+              {/* ✅ FIX: Sử dụng selectedEvent thay vì event */}
               <button
-                onClick={() => {
-                  setRegisteringEvent(event);
-                  setShowRegisterModal(true);
-                }}
-                className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700"
+                onClick={() => handleRegister(selectedEvent)}
+                className="w-full bg-white text-blue-600 py-3 rounded-lg hover:bg-blue-50 font-semibold transition-colors"
               >
                 Đăng ký tham gia
               </button>
@@ -560,6 +578,8 @@ const MemberDashboard = ({ user, onLogout }) => {
         {currentPage === "activities" && <ActivitiesPage />}
         {currentPage === "event-detail" && <EventDetailPage />}
       </main>
+      
+      {/* ✅ Modal đăng ký */}
       {showRegisterModal && registeringEvent && (
         <EventRegistrationModal
           event={registeringEvent}
@@ -568,7 +588,11 @@ const MemberDashboard = ({ user, onLogout }) => {
             setShowRegisterModal(false);
             setRegisteringEvent(null);
           }}
-          onSuccess={loadEvents}
+          onSuccess={() => {
+            loadEvents();
+            setShowRegisterModal(false);
+            setRegisteringEvent(null);
+          }}
         />
       )}
     </div>
