@@ -19,6 +19,7 @@ import { getEvents } from "../../services/firebase-service";
 import { getStravaAuthUrl } from "../../services/strava-service";
 import { syncUserActivities } from "../../services/strava-sync";
 import { logoutUser } from "../../services/auth-service";
+import EventRegistrationModal from "./EventRegistrationModal";
 
 const MemberDashboard = ({ user, onLogout }) => {
   const [currentPage, setCurrentPage] = useState("home");
@@ -29,6 +30,8 @@ const MemberDashboard = ({ user, onLogout }) => {
   const [syncStatus, setSyncStatus] = useState({ syncing: false, message: "" });
 
   const stravaConnected = user?.stravaIntegration?.isConnected || false;
+  const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [registeringEvent, setRegisteringEvent] = useState(null);
 
   useEffect(() => {
     loadEvents();
@@ -38,9 +41,11 @@ const MemberDashboard = ({ user, onLogout }) => {
     setLoading(true);
     const result = await getEvents();
     if (result.success) {
+      console.log("📦 Loaded events:", result.data); // ← LOG ĐỂ CHECK
+
       // Lọc các events active và sắp xếp theo ngày tạo mới nhất
       const activeEvents = result.data
-        //.filter(e => e.status === 'active' || e.status === 'upcoming')
+        //.filter(e => e.status === 'active' || e.status === 'pending')
         .sort((a, b) => {
           // Sắp xếp theo startDate, mới nhất lên đầu
           return new Date(b.startDate) - new Date(a.startDate);
@@ -529,7 +534,13 @@ const MemberDashboard = ({ user, onLogout }) => {
               <p className="text-sm opacity-90 mb-4">
                 Kết nối Strava và bắt đầu challenge cùng cộng đồng
               </p>
-              <button className="w-full bg-white text-blue-600 py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors">
+              <button
+                onClick={() => {
+                  setRegisteringEvent(event);
+                  setShowRegisterModal(true);
+                }}
+                className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700"
+              >
                 Đăng ký tham gia
               </button>
             </div>
@@ -549,6 +560,17 @@ const MemberDashboard = ({ user, onLogout }) => {
         {currentPage === "activities" && <ActivitiesPage />}
         {currentPage === "event-detail" && <EventDetailPage />}
       </main>
+      {showRegisterModal && registeringEvent && (
+        <EventRegistrationModal
+          event={registeringEvent}
+          user={user}
+          onClose={() => {
+            setShowRegisterModal(false);
+            setRegisteringEvent(null);
+          }}
+          onSuccess={loadEvents}
+        />
+      )}
     </div>
   );
 };

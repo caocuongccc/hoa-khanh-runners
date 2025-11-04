@@ -18,7 +18,7 @@ import { db } from "../../services/firebase";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { storage } from "../../services/firebase";
 
-const CreateEventModal = ({ onClose, onSuccess }) => {
+const CreateEventModal = ({ onClose, onSuccess, eventData }) => {
   const [step, setStep] = useState(1); // 1: Basic Info, 2: Teams, 3: Select Rules, 4: Review
   const [loading, setLoading] = useState(false);
   const [ruleGroups, setRuleGroups] = useState([]);
@@ -31,11 +31,15 @@ const CreateEventModal = ({ onClose, onSuccess }) => {
     name: "",
     description: "",
     startDate: "",
+    startTime: "00:00", // ← THÊM
     endDate: "",
-    status: "created",
+    endTime: "23:59", // ← THÊM
+    status: "created", // created, active, pending, closed
     numTeams: 4,
     teamCapacity: 50,
-    teams: [], // ← THÊM DÒNG NÀY
+    teams: [],
+    isPrivate: false,
+    password: "",
     media: {
       coverImage: "",
     },
@@ -48,7 +52,32 @@ const CreateEventModal = ({ onClose, onSuccess }) => {
 
   useEffect(() => {
     loadRulesData();
-  }, []);
+
+    // Load event data khi edit
+    if (eventData) {
+      setFormData({
+        ...formData,
+        ...eventData,
+        startTime: eventData.startTime || "00:00",
+        endTime: eventData.endTime || "23:59",
+      });
+
+      // Load selected rules nếu có
+      if (eventData.id) {
+        loadEventRules(eventData.id);
+      }
+    }
+  }, [eventData]);
+
+  const loadEventRules = async (eventId) => {
+    const q = query(
+      collection(db, "eventRules"),
+      where("eventId", "==", eventId)
+    );
+    const snap = await getDocs(q);
+    const rules = snap.docs.map((d) => d.data());
+    setSelectedRules(rules);
+  };
 
   const loadRulesData = async () => {
     const [groupsRes, rulesRes] = await Promise.all([
@@ -119,6 +148,100 @@ const CreateEventModal = ({ onClose, onSuccess }) => {
     );
   };
 
+  // const handleSubmit = async () => {
+  //   if (step < 4) {
+  //     setStep(step + 1);
+  //     return;
+  //   }
+
+  //   setLoading(true);
+  //   try {
+  //     // Step 1: Create event
+  //     const eventData = {
+  //       ...formData,
+  //       startDateTime: `${formData.startDate}T${formData.startTime}`,
+  //       endDateTime: `${formData.endDate}T${formData.endTime}`,
+  //       teams: formData.teams,  // ← PHẢI CÓ DÒNG NÀY
+  //       createdBy: "admin",
+  //       registration: {
+  //         ...formData.registration,
+  //         currentParticipants: formData.registration.currentParticipants || 0,
+  //         registrationDeadline: formData.startDate,
+  //       },
+  //     };
+
+  //     let eventId;
+
+  //     if (formData.id) {
+  //       // UPDATE
+  //       await updateDoc(doc(db, "events", formData.id), {
+  //         ...eventData,
+  //         updatedAt: Timestamp.now(),
+  //       });
+  //       eventId = formData.id;
+  //       //alert("✅ Cập nhật sự kiện thành công!");
+  //     } else {
+  //       // CREATE
+  //       const eventResult = await createEvent(eventData);
+  //       if (!eventResult.success) {
+  //         alert("Lỗi tạo sự kiện: " + eventResult.error);
+  //         setLoading(false);
+  //         return;
+  //       }
+  //       eventId = eventResult.id;
+  //       //alert("✅ Tạo sự kiện thành công!");
+  //     }
+
+  //     // Step 2: Upload image if exists
+  //     if (imageFile) {
+  //       const imageUrl = await uploadImage(eventId);
+  //       if (imageUrl) {
+  //         await updateDoc(doc(db, "events", eventId), {
+  //           "media.coverImage": imageUrl,
+  //         });
+  //       }
+  //     }
+
+  //     // Update eventRules (xóa cũ, tạo mới)
+  //     if (selectedRules.length > 0) {
+  //       // Delete old rules
+  //       if (formData.id) {
+  //         const oldRulesQuery = query(
+  //           collection(db, "eventRules"),
+  //           where("eventId", "==", eventId)
+  //         );
+  //         const oldRulesSnap = await getDocs(oldRulesQuery);
+  //         const batch = writeBatch(db);
+  //         oldRulesSnap.docs.forEach((doc) => batch.delete(doc.ref));
+  //         await batch.commit();
+  //       }
+
+  //       // Create new rules
+  //       const batch = writeBatch(db);
+  //       selectedRules.forEach((rule) => {
+  //         const docRef = doc(collection(db, "eventRules"));
+  //         batch.set(docRef, {
+  //           eventId: eventId,
+  //           ruleId: rule.ruleId,
+  //           order: rule.order,
+  //           customization: rule.customization,
+  //           addedAt: Timestamp.now(),
+  //           addedBy: "admin",
+  //         });
+  //       });
+  //       await batch.commit();
+  //     }
+  //     alert("✅ Tạo sự kiện thành công!");
+  //     onSuccess();
+  //     onClose();
+  //   } catch (error) {
+  //     console.error("Error:", error);
+  //     alert("Lỗi: " + error.message);
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
+
   const handleSubmit = async () => {
     if (step < 4) {
       setStep(step + 1);
@@ -127,29 +250,62 @@ const CreateEventModal = ({ onClose, onSuccess }) => {
 
     setLoading(true);
     try {
-      // Step 1: Create event
-      const eventData = {
-        ...formData,
-        createdBy: "admin",
-        status: "active",
+      // QUAN TRỌNG: Đảm bảo teams được include
+      const eventPayload = {
+        name: formData.name,
+        description: formData.description,
+        startDate: formData.startDate,
+        startTime: formData.startTime || "00:00",
+        endDate: formData.endDate,
+        endTime: formData.endTime || "23:59",
+        startDateTime: `${formData.startDate}T${formData.startTime || "00:00"}`,
+        endDateTime: `${formData.endDate}T${formData.endTime || "23:59"}`,
+        status: "created",
+        teams: formData.teams || [], // ← ĐẢM BẢO LUÔN CÓ
+        isPrivate: formData.isPrivate || false,
+        password: formData.password || "",
+        media: {
+          coverImage: formData.media.coverImage || "",
+        },
         registration: {
-          ...formData.registration,
+          isOpen: true,
+          maxParticipants: formData.registration.maxParticipants || null,
           currentParticipants: 0,
           registrationDeadline: formData.startDate,
         },
+        createdBy: "admin",
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
       };
 
-      const eventResult = await createEvent(eventData);
+      console.log("📤 Event payload:", eventPayload); // ← THÊM LOG ĐỂ CHECK
+      console.log("👥 Teams to save:", eventPayload.teams); // ← CHECK TEAMS
 
-      if (!eventResult.success) {
-        alert("Lỗi tạo sự kiện: " + eventResult.error);
-        setLoading(false);
-        return;
+      let eventId;
+
+      if (formData.id) {
+        // UPDATE
+        await updateDoc(doc(db, "events", formData.id), {
+          ...eventPayload,
+          updatedAt: Timestamp.now(),
+        });
+        eventId = formData.id;
+        alert("✅ Cập nhật sự kiện thành công!");
+      } else {
+        // CREATE
+        const eventResult = await createEvent(eventPayload);
+
+        if (!eventResult.success) {
+          alert("Lỗi tạo sự kiện: " + eventResult.error);
+          setLoading(false);
+          return;
+        }
+
+        eventId = eventResult.id;
+        console.log("✅ Event created with ID:", eventId);
       }
 
-      const eventId = eventResult.id;
-
-      // Step 2: Upload image if exists
+      // Upload image if exists
       if (imageFile) {
         const imageUrl = await uploadImage(eventId);
         if (imageUrl) {
@@ -159,8 +315,21 @@ const CreateEventModal = ({ onClose, onSuccess }) => {
         }
       }
 
-      // Step 3: Create eventRules
+      // Save eventRules
       if (selectedRules.length > 0) {
+        // Delete old rules if editing
+        if (formData.id) {
+          const oldRulesQuery = query(
+            collection(db, "eventRules"),
+            where("eventId", "==", eventId)
+          );
+          const oldRulesSnap = await getDocs(oldRulesQuery);
+          const batch = writeBatch(db);
+          oldRulesSnap.docs.forEach((doc) => batch.delete(doc.ref));
+          await batch.commit();
+        }
+
+        // Create new rules
         const batch = writeBatch(db);
         selectedRules.forEach((rule) => {
           const docRef = doc(collection(db, "eventRules"));
@@ -177,12 +346,12 @@ const CreateEventModal = ({ onClose, onSuccess }) => {
       }
 
       alert("✅ Tạo sự kiện thành công!");
+      setLoading(false);
       onSuccess();
       onClose();
     } catch (error) {
-      console.error("Error creating event:", error);
+      console.error("❌ Error creating event:", error);
       alert("Lỗi: " + error.message);
-    } finally {
       setLoading(false);
     }
   };
@@ -201,7 +370,9 @@ const CreateEventModal = ({ onClose, onSuccess }) => {
           required
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
           value={formData.name}
-          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+          onChange={(e) =>
+            setFormData((prev) => ({ ...prev, name: e.target.value }))
+          }
           placeholder="VD: Thử thách 100km tháng 12"
         />
       </div>
@@ -215,7 +386,7 @@ const CreateEventModal = ({ onClose, onSuccess }) => {
           rows="4"
           value={formData.description}
           onChange={(e) =>
-            setFormData({ ...formData, description: e.target.value })
+            setFormData((prev) => ({ ...prev, description: e.target.value }))
           }
           placeholder="Mô tả chi tiết về sự kiện..."
         />
@@ -224,31 +395,53 @@ const CreateEventModal = ({ onClose, onSuccess }) => {
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Ngày bắt đầu <span className="text-red-500">*</span>
+            Ngày & giờ bắt đầu <span className="text-red-500">*</span>
           </label>
-          <input
-            type="date"
-            required
-            className="w-full px-3 py-2 border border-gray-300 rounded-md"
-            value={formData.startDate}
-            onChange={(e) =>
-              setFormData({ ...formData, startDate: e.target.value })
-            }
-          />
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              type="date"
+              required
+              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              value={formData.startDate}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, startDate: e.target.value }))
+              }
+            />
+            <input
+              type="time"
+              required
+              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              value={formData.startTime}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, startTime: e.target.value }))
+              }
+            />
+          </div>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Ngày kết thúc <span className="text-red-500">*</span>
+            Ngày & giờ kết thúc <span className="text-red-500">*</span>
           </label>
-          <input
-            type="date"
-            required
-            className="w-full px-3 py-2 border border-gray-300 rounded-md"
-            value={formData.endDate}
-            onChange={(e) =>
-              setFormData({ ...formData, endDate: e.target.value })
-            }
-          />
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              type="date"
+              required
+              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              value={formData.endDate}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, endDate: e.target.value }))
+              }
+            />
+            <input
+              type="time"
+              required
+              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              value={formData.endTime}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, endTime: e.target.value }))
+              }
+            />
+          </div>
         </div>
       </div>
 
@@ -313,28 +506,55 @@ const CreateEventModal = ({ onClose, onSuccess }) => {
           placeholder="Để trống = không giới hạn"
         />
       </div>
+      {/* Private Event */}
+      <div className="border-t pt-4 mt-4">
+        <label className="flex items-center gap-2 mb-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={formData.isPrivate}
+            onChange={(e) =>
+              setFormData((prev) => ({
+                ...prev,
+                isPrivate: e.target.checked,
+                password: e.target.checked ? prev.password : "",
+              }))
+            }
+            className="w-4 h-4"
+          />
+          <span className="text-sm font-medium text-gray-700">
+            🔒 Sự kiện Private (yêu cầu mật khẩu để tham gia)
+          </span>
+        </label>
+
+        {formData.isPrivate && (
+          <div className="ml-6 bg-orange-50 border border-orange-200 rounded-lg p-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Mật khẩu tham gia <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              required={formData.isPrivate}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+              value={formData.password}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, password: e.target.value }))
+              }
+              placeholder="Nhập mật khẩu (VD: hoakhanh2025)"
+            />
+            <p className="text-xs text-orange-700 mt-2">
+              💡 Chỉ những người biết mật khẩu mới có thể đăng ký tham gia sự
+              kiện này
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
   // Step 2: Teams Configuration
   const TeamsStep = () => {
-    // Generate teams khi numTeams thay đổi
-    useEffect(() => {
-      const newTeams = [];
-      for (let i = 1; i <= formData.numTeams; i++) {
-        const existingTeam = formData.teams[i - 1];
-        newTeams.push(
-          existingTeam || {
-            id: `team_${i}`,
-            name: `Team ${i}`,
-            members: [],
-            capacity: parseInt(formData.teamCapacity),
-            currentMembers: 0,
-          }
-        );
-      }
-      setFormData((prev) => ({ ...prev, teams: newTeams }));
-    }, [formData.numTeams, formData.teamCapacity]);
-
+    console.log("🔧 Current formData.teams:", formData.teams); // ← THÊM LOG
+    console.log("🔧 numTeams:", formData.numTeams);
+    console.log("🔧 teamCapacity:", formData.teamCapacity);
     const updateTeamName = (index, name) => {
       const newTeams = [...formData.teams];
       newTeams[index] = { ...newTeams[index], name };
@@ -346,6 +566,28 @@ const CreateEventModal = ({ onClose, onSuccess }) => {
       newTeams[index] = { ...newTeams[index], capacity: parseInt(capacity) };
       setFormData({ ...formData, teams: newTeams });
     };
+
+    // Generate teams chỉ khi cần
+    const generateTeams = () => {
+      const newTeams = [];
+      for (let i = 1; i <= formData.numTeams; i++) {
+        newTeams.push({
+          id: `team_${i}`,
+          name: `Team ${i}`,
+          members: [],
+          capacity: parseInt(formData.teamCapacity),
+          currentMembers: 0,
+        });
+      }
+      console.log("✨ Generated teams:", newTeams); // ← LOG TEAMS MỚI TẠO
+
+      setFormData({ ...formData, teams: newTeams });
+    };
+
+    // Chỉ generate khi chưa có teams hoặc số teams thay đổi
+    if (formData.teams.length !== formData.numTeams) {
+      generateTeams();
+    }
 
     return (
       <div className="space-y-4">
@@ -366,9 +608,10 @@ const CreateEventModal = ({ onClose, onSuccess }) => {
               required
               className="w-full px-3 py-2 border border-gray-300 rounded-md"
               value={formData.numTeams}
-              onChange={(e) =>
-                setFormData({ ...formData, numTeams: parseInt(e.target.value) })
-              }
+              onChange={(e) => {
+                const numTeams = parseInt(e.target.value);
+                setFormData({ ...formData, numTeams, teams: [] });
+              }}
             />
           </div>
           <div>
@@ -609,6 +852,7 @@ const CreateEventModal = ({ onClose, onSuccess }) => {
             ))}
           </div>
         </div>
+
         {imagePreview && (
           <div>
             <p className="text-sm text-gray-600 mb-2">Ảnh bìa</p>
@@ -617,6 +861,17 @@ const CreateEventModal = ({ onClose, onSuccess }) => {
               alt="Preview"
               className="w-full h-32 object-cover rounded"
             />
+          </div>
+        )}
+        {formData.isPrivate && (
+          <div>
+            <p className="text-sm text-gray-600">Loại sự kiện</p>
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-orange-600">🔒 Private</span>
+              <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded">
+                Mật khẩu: {formData.password}
+              </span>
+            </div>
           </div>
         )}
       </div>

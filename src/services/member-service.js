@@ -14,7 +14,7 @@ import { db } from "./firebase";
 import { getStravaActivities } from "./strava-service";
 
 // ===== EVENT REGISTRATION =====
-export const registerForEvent = async (eventId, userId, userName) => {
+export const registerForEvent = async (eventId, userId, userName, teamId) => {
   try {
     // Check if already registered
     const q = query(
@@ -33,6 +33,7 @@ export const registerForEvent = async (eventId, userId, userName) => {
       eventId,
       userId,
       userName,
+      teamId,  // ← THÊM
       status: "active",
       registeredAt: Timestamp.now(),
       progress: {
@@ -56,6 +57,20 @@ export const registerForEvent = async (eventId, userId, userName) => {
       "registration.currentParticipants": currentCount + 1,
     });
 
+    // Update team member count
+    const teams = eventSnap.data().teams || [];
+    const updatedTeams = teams.map(team => {
+      if (team.id === teamId) {
+        return {
+          ...team,
+          currentMembers: (team.currentMembers || 0) + 1,
+          members: [...(team.members || []), { userId, userName }]
+        };
+      }
+      return team;
+    });
+    await updateDoc(eventRef, { teams: updatedTeams });
+    
     return { success: true };
   } catch (error) {
     console.error("Error registering for event:", error);

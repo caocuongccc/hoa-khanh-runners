@@ -19,6 +19,9 @@ import {
 } from "../../services/firebase-service";
 import { logoutUser } from "../../services/auth-service";
 import CreateEventModal from "./CreateEventModal";
+import CreateRuleModal from "./CreateRuleModal";
+import { doc, updateDoc, deleteDoc, Timestamp } from "firebase/firestore";
+import { db } from "../../services/firebase";
 
 const AdminDashboard = ({ user, onLogout }) => {
   const [currentTab, setCurrentTab] = useState("events");
@@ -31,6 +34,11 @@ const AdminDashboard = ({ user, onLogout }) => {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [showCreateRule, setShowCreateRule] = useState(false);
   const [error, setError] = useState("");
+
+  const [selectedEventForTeams, setSelectedEventForTeams] = useState(null);
+  const [editingTeam, setEditingTeam] = useState(null);
+  const [showEditTeam, setShowEditTeam] = useState(false);
+  const [editingEvent, setEditingEvent] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -85,20 +93,58 @@ const AdminDashboard = ({ user, onLogout }) => {
     onLogout();
   };
 
-  const handleCreateEvent = async (eventData) => {
-    const result = await createEvent(eventData);
-    if (result.success) {
-      alert("Tạo sự kiện thành công!");
-      setShowCreateEvent(false);
-      loadData();
-    } else {
-      alert("Lỗi: " + result.error);
-    }
-  };
-
   const handleViewEvent = (event) => {
     setSelectedEvent(event);
     setShowEventDetail(true);
+  };
+
+  const handleDeleteEvent = async (eventId) => {
+    if (
+      !window.confirm(
+        "⚠️ Bạn có chắc muốn xóa sự kiện này?\n\nHành động này không thể hoàn tác!"
+      )
+    ) {
+      return;
+    }
+
+    try {
+      await deleteDoc(doc(db, "events", eventId));
+      alert("✅ Đã xóa sự kiện thành công!");
+      loadData();
+    } catch (error) {
+      alert("❌ Lỗi: " + error.message);
+    }
+  };
+
+  const handleEditEvent = (event) => {
+    setEditingEvent(event);
+    setShowCreateEvent(true);
+  };
+
+  const handleChangeEventStatus = async (eventId, newStatus) => {
+    const statusLabels = {
+      created: "Mới tạo",
+      active: "Đang diễn ra",
+      pending: "Tạm dừng",
+      closed: "Đã kết thúc",
+    };
+
+    if (
+      !window.confirm(`Chuyển trạng thái sang "${statusLabels[newStatus]}"?`)
+    ) {
+      return;
+    }
+
+    try {
+      await updateDoc(doc(db, "events", eventId), {
+        status: newStatus,
+        [`${newStatus}At`]: Timestamp.now(),
+      });
+      alert("✅ Đã cập nhật trạng thái!");
+      loadData();
+    } catch (error) {
+      alert("❌ Lỗi: " + error.message);
+    }
   };
 
   // Header
@@ -169,6 +215,17 @@ const AdminDashboard = ({ user, onLogout }) => {
         >
           <Users className="w-5 h-5" />
           <span className="font-medium">Quản lý Users</span>
+        </button>
+        <button
+          onClick={() => setCurrentTab("teams")}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+            currentTab === "teams"
+              ? "bg-blue-600 text-white"
+              : "text-gray-700 hover:bg-gray-100"
+          }`}
+        >
+          <Users className="w-5 h-5" />
+          <span className="font-medium">Quản lý Teams</span>
         </button>
       </nav>
     </aside>
@@ -278,13 +335,54 @@ const AdminDashboard = ({ user, onLogout }) => {
                       >
                         <Eye className="w-4 h-4" />
                       </button>
+
+                      {/* Status Actions */}
+                      {event.status === "created" && (
+                        <button
+                          onClick={() =>
+                            handleChangeEventStatus(event.id, "active")
+                          }
+                          className="text-green-600 hover:text-green-800 p-1"
+                          title="Kích hoạt"
+                        >
+                          ▶️
+                        </button>
+                      )}
+
+                      {event.status === "active" && (
+                        <button
+                          onClick={() =>
+                            handleChangeEventStatus(event.id, "pending")
+                          }
+                          className="text-yellow-600 hover:text-yellow-800 p-1"
+                          title="Tạm dừng"
+                        >
+                          ⏸️
+                        </button>
+                      )}
+
+                      {event.status === "pending" && (
+                        <button
+                          onClick={() =>
+                            handleChangeEventStatus(event.id, "active")
+                          }
+                          className="text-green-600 hover:text-green-800 p-1"
+                          title="Tiếp tục"
+                        >
+                          ▶️
+                        </button>
+                      )}
+
                       <button
+                        onClick={() => handleEditEvent(event)}
                         className="text-green-600 hover:text-green-800 p-1"
                         title="Sửa"
                       >
                         <Edit className="w-4 h-4" />
                       </button>
+
                       <button
+                        onClick={() => handleDeleteEvent(event.id)}
                         className="text-red-600 hover:text-red-800 p-1"
                         title="Xóa"
                       >
@@ -511,37 +609,6 @@ const AdminDashboard = ({ user, onLogout }) => {
     </div>
   );
 
-  // Create Rule Modal (Placeholder)
-  const CreateRuleModal = () => (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-bold">Tạo Rule Mới</h2>
-          <button
-            onClick={() => setShowCreateRule(false)}
-            className="text-gray-400 hover:text-gray-600"
-          >
-            <X className="w-6 h-6" />
-          </button>
-        </div>
-        <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4">
-          <p className="text-sm text-yellow-800">
-            Tính năng đang được phát triển. Hiện tại bạn có thể sử dụng các
-            rules có sẵn từ Seed Data.
-          </p>
-        </div>
-        <div className="mt-4 flex justify-end">
-          <button
-            onClick={() => setShowCreateRule(false)}
-            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
-          >
-            Đóng
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-
   // Users Management
   const UsersManagement = () => (
     <div className="space-y-6">
@@ -552,6 +619,269 @@ const AdminDashboard = ({ user, onLogout }) => {
     </div>
   );
 
+  // Teams Management
+  // Teams Management
+  const TeamsManagement = () => {
+    const [localEvents, setLocalEvents] = useState(events);
+
+    const handleSelectEvent = (event) => {
+      setSelectedEventForTeams(event);
+    };
+
+    const handleEditTeam = (event, team) => {
+      setEditingTeam({ ...team, eventId: event.id });
+      setShowEditTeam(true);
+    };
+
+    const handleRemoveMember = async (eventId, teamId, memberId) => {
+      if (!window.confirm("Xóa thành viên này khỏi team?")) return;
+
+      // TODO: Implement remove member logic
+      alert("Tính năng đang phát triển");
+    };
+
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold text-gray-900">Quản lý Teams</h2>
+        </div>
+
+        {loading ? (
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          </div>
+        ) : events.length === 0 ? (
+          <div className="bg-white rounded-lg shadow p-12 text-center">
+            <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <p className="text-gray-500 mb-2">Chưa có sự kiện nào</p>
+            <button
+              onClick={() => setCurrentTab("events")}
+              className="text-blue-600 hover:text-blue-700 font-medium"
+            >
+              Tạo sự kiện đầu tiên →
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {events.map((event) => (
+              <div
+                key={event.id}
+                className="bg-white rounded-lg shadow overflow-hidden"
+              >
+                <div className="bg-gray-50 px-6 py-4 border-b">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        {event.name}
+                      </h3>
+                      <p className="text-sm text-gray-600">
+                        {event.startDate} - {event.endDate}
+                      </p>
+                    </div>
+                    <span
+                      className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                        event.status === "active"
+                          ? "bg-green-100 text-green-800"
+                          : event.status === "completed"
+                          ? "bg-gray-100 text-gray-800"
+                          : "bg-yellow-100 text-yellow-800"
+                      }`}
+                    >
+                      {event.status}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-6">
+                  {!event.teams || event.teams.length === 0 ? (
+                    <div className="text-center py-8">
+                      <p className="text-gray-500 mb-2">Chưa có team nào</p>
+                      <p className="text-sm text-gray-400">
+                        Sự kiện này chưa được cấu hình teams
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      {event.teams.map((team) => (
+                        <div
+                          key={team.id}
+                          className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 transition-colors"
+                        >
+                          <div className="flex items-center justify-between mb-3">
+                            <h4 className="font-semibold text-gray-900">
+                              {team.name}
+                            </h4>
+                            <button
+                              onClick={() => handleEditTeam(event, team)}
+                              className="text-blue-600 hover:text-blue-800"
+                              title="Sửa team"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          <div className="mb-3">
+                            <div className="flex justify-between text-sm text-gray-600 mb-1">
+                              <span>Thành viên</span>
+                              <span className="font-semibold">
+                                {team.currentMembers || 0}/{team.capacity}
+                              </span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div
+                                className="bg-blue-600 h-2 rounded-full"
+                                style={{
+                                  width: `${
+                                    ((team.currentMembers || 0) /
+                                      team.capacity) *
+                                    100
+                                  }%`,
+                                }}
+                              ></div>
+                            </div>
+                          </div>
+
+                          {team.members && team.members.length > 0 ? (
+                            <div className="space-y-2">
+                              <p className="text-xs font-medium text-gray-700">
+                                Thành viên:
+                              </p>
+                              <div className="max-h-32 overflow-y-auto space-y-1">
+                                {team.members.map((member, idx) => (
+                                  <div
+                                    key={idx}
+                                    className="flex items-center justify-between text-xs bg-gray-50 p-2 rounded"
+                                  >
+                                    <span className="text-gray-700">
+                                      {member.name || member.userId}
+                                    </span>
+                                    <button
+                                      onClick={() =>
+                                        handleRemoveMember(
+                                          event.id,
+                                          team.id,
+                                          member.userId
+                                        )
+                                      }
+                                      className="text-red-500 hover:text-red-700"
+                                      title="Xóa"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-xs text-gray-500 italic">
+                              Chưa có thành viên
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Edit Team Modal
+  const EditTeamModal = () => {
+    if (!editingTeam) return null;
+
+    const [teamData, setTeamData] = useState(editingTeam);
+
+    const handleSubmit = async (e) => {
+      e.preventDefault();
+
+      // TODO: Implement updateTeam in firebase-service
+      alert("Tính năng đang phát triển");
+      setShowEditTeam(false);
+    };
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold">Sửa Team</h2>
+              <button
+                onClick={() => setShowEditTeam(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Tên Team *
+                </label>
+                <input
+                  type="text"
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  value={teamData.name}
+                  onChange={(e) =>
+                    setTeamData({ ...teamData, name: e.target.value })
+                  }
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Số người tối đa *
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  value={teamData.capacity}
+                  onChange={(e) =>
+                    setTeamData({
+                      ...teamData,
+                      capacity: parseInt(e.target.value),
+                    })
+                  }
+                />
+              </div>
+
+              <div className="bg-blue-50 p-3 rounded-md">
+                <p className="text-sm text-blue-800">
+                  📊 Hiện tại: {teamData.currentMembers || 0}/
+                  {teamData.capacity} thành viên
+                </p>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="submit"
+                  className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700"
+                >
+                  Lưu thay đổi
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowEditTeam(false)}
+                  className="flex-1 bg-gray-200 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-300"
+                >
+                  Hủy
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
@@ -561,17 +891,31 @@ const AdminDashboard = ({ user, onLogout }) => {
           {currentTab === "events" && <EventsManagement />}
           {currentTab === "rules" && <RulesManagement />}
           {currentTab === "users" && <UsersManagement />}
+          {currentTab === "teams" && <TeamsManagement />}
         </main>
       </div>
 
       {showCreateEvent && (
         <CreateEventModal
-          onClose={() => setShowCreateEvent(false)}
-          onSuccess={loadData}
+          onClose={() => {
+            setShowCreateEvent(false);
+            setEditingEvent(null);
+          }}
+          onSuccess={() => {
+            loadData();
+            setEditingEvent(null);
+          }}
+          eventData={editingEvent} // ← THÊM PROP NÀY
         />
       )}
       {showEventDetail && <EventDetailModal />}
-      {showCreateRule && <CreateRuleModal />}
+      {showCreateRule && (
+        <CreateRuleModal
+          onClose={() => setShowCreateRule(false)}
+          onSuccess={loadData}
+        />
+      )}
+      {showEditTeam && <EditTeamModal />}
     </div>
   );
 };
