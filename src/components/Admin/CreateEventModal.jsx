@@ -49,10 +49,20 @@ const CreateEventModal = ({ onClose, onSuccess, eventData }) => {
       currentParticipants: 0,
     },
   });
+  // ✅ Load rules 1 lần duy nhất
+  useEffect(() => {
+    (async () => {
+      const [groupsRes, rulesRes] = await Promise.all([
+        getRuleGroups(),
+        getRules(),
+      ]);
+      if (groupsRes.success) setRuleGroups(groupsRes.data);
+      if (rulesRes.success) setRules(rulesRes.data);
+    })();
+  }, []);
 
   useEffect(() => {
-    loadRulesData();
-
+    if (!eventData) return;
     // Load event data khi edit
     if (eventData) {
       setFormData({
@@ -67,7 +77,7 @@ const CreateEventModal = ({ onClose, onSuccess, eventData }) => {
         loadEventRules(eventData.id);
       }
     }
-  }, [eventData]);
+  }, [eventData?.id]);
 
   const loadEventRules = async (eventId) => {
     const q = query(
@@ -147,100 +157,6 @@ const CreateEventModal = ({ onClose, onSuccess, eventData }) => {
       )
     );
   };
-
-  // const handleSubmit = async () => {
-  //   if (step < 4) {
-  //     setStep(step + 1);
-  //     return;
-  //   }
-
-  //   setLoading(true);
-  //   try {
-  //     // Step 1: Create event
-  //     const eventData = {
-  //       ...formData,
-  //       startDateTime: `${formData.startDate}T${formData.startTime}`,
-  //       endDateTime: `${formData.endDate}T${formData.endTime}`,
-  //       teams: formData.teams,  // ← PHẢI CÓ DÒNG NÀY
-  //       createdBy: "admin",
-  //       registration: {
-  //         ...formData.registration,
-  //         currentParticipants: formData.registration.currentParticipants || 0,
-  //         registrationDeadline: formData.startDate,
-  //       },
-  //     };
-
-  //     let eventId;
-
-  //     if (formData.id) {
-  //       // UPDATE
-  //       await updateDoc(doc(db, "events", formData.id), {
-  //         ...eventData,
-  //         updatedAt: Timestamp.now(),
-  //       });
-  //       eventId = formData.id;
-  //       //alert("✅ Cập nhật sự kiện thành công!");
-  //     } else {
-  //       // CREATE
-  //       const eventResult = await createEvent(eventData);
-  //       if (!eventResult.success) {
-  //         alert("Lỗi tạo sự kiện: " + eventResult.error);
-  //         setLoading(false);
-  //         return;
-  //       }
-  //       eventId = eventResult.id;
-  //       //alert("✅ Tạo sự kiện thành công!");
-  //     }
-
-  //     // Step 2: Upload image if exists
-  //     if (imageFile) {
-  //       const imageUrl = await uploadImage(eventId);
-  //       if (imageUrl) {
-  //         await updateDoc(doc(db, "events", eventId), {
-  //           "media.coverImage": imageUrl,
-  //         });
-  //       }
-  //     }
-
-  //     // Update eventRules (xóa cũ, tạo mới)
-  //     if (selectedRules.length > 0) {
-  //       // Delete old rules
-  //       if (formData.id) {
-  //         const oldRulesQuery = query(
-  //           collection(db, "eventRules"),
-  //           where("eventId", "==", eventId)
-  //         );
-  //         const oldRulesSnap = await getDocs(oldRulesQuery);
-  //         const batch = writeBatch(db);
-  //         oldRulesSnap.docs.forEach((doc) => batch.delete(doc.ref));
-  //         await batch.commit();
-  //       }
-
-  //       // Create new rules
-  //       const batch = writeBatch(db);
-  //       selectedRules.forEach((rule) => {
-  //         const docRef = doc(collection(db, "eventRules"));
-  //         batch.set(docRef, {
-  //           eventId: eventId,
-  //           ruleId: rule.ruleId,
-  //           order: rule.order,
-  //           customization: rule.customization,
-  //           addedAt: Timestamp.now(),
-  //           addedBy: "admin",
-  //         });
-  //       });
-  //       await batch.commit();
-  //     }
-  //     alert("✅ Tạo sự kiện thành công!");
-  //     onSuccess();
-  //     onClose();
-  //   } catch (error) {
-  //     console.error("Error:", error);
-  //     alert("Lỗi: " + error.message);
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // };
 
   const handleSubmit = async () => {
     if (step < 4) {
@@ -563,6 +479,7 @@ const CreateEventModal = ({ onClose, onSuccess, eventData }) => {
     console.log("🔧 Current formData.teams:", formData.teams); // ← THÊM LOG
     console.log("🔧 numTeams:", formData.numTeams);
     console.log("🔧 teamCapacity:", formData.teamCapacity);
+
     const updateTeamName = (index, name) => {
       const newTeams = [...formData.teams];
       newTeams[index] = { ...newTeams[index], name };

@@ -24,6 +24,7 @@ export const syncUserActivities = async (user, startDate, endDate) => {
     // Save to Firebase
     let savedCount = 0;
     for (const activity of activities) {
+      //alert(JSON.stringify(activity));
       const trackLog = {
         userId: user.uid,
         stravaActivityId: activity.id.toString(),
@@ -44,8 +45,9 @@ export const syncUserActivities = async (user, startDate, endDate) => {
         },
         type: activity.type,
       };
-
+//alert(JSON.stringify(trackLog));
       const result = await saveTrackLog(trackLog);
+      //alert('vao day chua'+`  Result: ${JSON.stringify(result)}`);
       if (result.success) savedCount++;
     }
 
@@ -53,6 +55,8 @@ export const syncUserActivities = async (user, startDate, endDate) => {
       success: true,
       total: activities.length,
       saved: savedCount,
+        activities: activities, // thêm dòng này
+
     };
   } catch (error) {
     console.error("Error syncing activities:", error);

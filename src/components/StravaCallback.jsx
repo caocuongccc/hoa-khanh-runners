@@ -11,11 +11,11 @@ const StravaCallback = ({ currentUser }) => {
   useEffect(() => {
     const handleCallback = async () => {
       const code = searchParams.get("code");
-
+      alert(code);
       if (code && currentUser) {
         try {
           const tokens = await exchangeToken(code);
-
+          alert(tokens);
           // Lưu tokens vào Firestore
           await updateDoc(doc(db, "users", currentUser.uid), {
             "stravaIntegration.isConnected": true,
