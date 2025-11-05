@@ -13,6 +13,7 @@ import {
   Timestamp,
   collection,
   updateDoc,
+  query, where, getDocs
 } from "firebase/firestore";
 import { db } from "../../services/firebase";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -158,127 +159,129 @@ const CreateEventModal = ({ onClose, onSuccess, eventData }) => {
     );
   };
 
-  const handleSubmit = async () => {
-    if (step < 4) {
-      setStep(step + 1);
-      return;
+  // 2. FIX: Đảm bảo teams được lưu với metadata đầy đủ
+const handleSubmit = async () => {
+  if (step < 4) {
+    setStep(step + 1);
+    return;
+  }
+
+  setLoading(true);
+  try {
+    // ✅ Đảm bảo teams có đầy đủ metadata
+    const teamsWithMetadata = formData.teams.map(team => ({
+      id: team.id,
+      name: team.name,
+      capacity: team.capacity,
+      currentMembers: 0, // ← QUAN TRỌNG
+      members: [] // ← Khởi tạo array rỗng
+    }));
+
+    const eventPayload = {
+      name: formData.name,
+      description: formData.description,
+      startDate: formData.startDate,
+      startTime: formData.startTime || "00:00",
+      endDate: formData.endDate,
+      endTime: formData.endTime || "23:59",
+      startDateTime: `${formData.startDate}T${formData.startTime || "00:00"}`,
+      endDateTime: `${formData.endDate}T${formData.endTime || "23:59"}`,
+      status: "created",
+      teams: teamsWithMetadata, // ← Dùng teams đã chuẩn hóa
+      isPrivate: formData.isPrivate || false,
+      password: formData.password || "",
+      media: {
+        coverImage: formData.media.coverImage || "",
+      },
+      registration: {
+        isOpen: true,
+        maxParticipants: formData.registration.maxParticipants || null,
+        currentParticipants: 0,
+        registrationDeadline: formData.startDate,
+      },
+      createdBy: "admin",
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    };
+
+    console.log("📤 Event payload:", eventPayload);
+    console.log("👥 Teams to save:", eventPayload.teams);
+
+    let eventId;
+
+    if (formData.id) {
+      // UPDATE
+      await updateDoc(doc(db, "events", formData.id), {
+        ...eventPayload,
+        updatedAt: Timestamp.now(),
+      });
+      eventId = formData.id;
+      console.log("✅ Updated event:", eventId);
+    } else {
+      // CREATE
+      const eventResult = await createEvent(eventPayload);
+
+      if (!eventResult.success) {
+        alert("Lỗi tạo sự kiện: " + eventResult.error);
+        setLoading(false);
+        return;
+      }
+
+      eventId = eventResult.id;
+      console.log("✅ Event created with ID:", eventId);
     }
 
-    setLoading(true);
-    try {
-      // Thêm metadata cho teams
-      const teamsWithMetadata = formData.teams.map((team) => ({
-        id: team.id,
-        name: team.name,
-        capacity: team.capacity,
-        currentMembers: 0, // ← QUAN TRỌNG: Khởi tạo currentMembers
-        members: [], // ← Khởi tạo members array rỗng
-      }));
-      // QUAN TRỌNG: Đảm bảo teams được include
-      const eventPayload = {
-        name: formData.name,
-        description: formData.description,
-        startDate: formData.startDate,
-        startTime: formData.startTime || "00:00",
-        endDate: formData.endDate,
-        endTime: formData.endTime || "23:59",
-        startDateTime: `${formData.startDate}T${formData.startTime || "00:00"}`,
-        endDateTime: `${formData.endDate}T${formData.endTime || "23:59"}`,
-        status: "created",
-        teams: teamsWithMetadata, // ← Dùng teams có metadata
-        isPrivate: formData.isPrivate || false,
-        password: formData.password || "",
-        media: {
-          coverImage: formData.media.coverImage || "",
-        },
-        registration: {
-          isOpen: true,
-          maxParticipants: formData.registration.maxParticipants || null,
-          currentParticipants: 0,
-          registrationDeadline: formData.startDate,
-        },
-        createdBy: "admin",
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
-      };
+    // Upload image if exists
+    if (imageFile) {
+      const imageUrl = await uploadImage(eventId);
+      if (imageUrl) {
+        await updateDoc(doc(db, "events", eventId), {
+          "media.coverImage": imageUrl,
+        });
+      }
+    }
 
-      console.log("📤 Event payload:", eventPayload); // ← THÊM LOG ĐỂ CHECK
-      console.log("👥 Teams to save:", eventPayload.teams); // ← CHECK TEAMS
-
-      let eventId;
-
+    // Save eventRules
+    if (selectedRules.length > 0) {
       if (formData.id) {
-        // UPDATE
-        await updateDoc(doc(db, "events", formData.id), {
-          ...eventPayload,
-          updatedAt: Timestamp.now(),
-        });
-        eventId = formData.id;
-        alert("✅ Cập nhật sự kiện thành công!");
-      } else {
-        // CREATE
-        const eventResult = await createEvent(eventPayload);
-
-        if (!eventResult.success) {
-          alert("Lỗi tạo sự kiện: " + eventResult.error);
-          setLoading(false);
-          return;
-        }
-
-        eventId = eventResult.id;
-        console.log("✅ Event created with ID:", eventId);
-      }
-
-      // Upload image if exists
-      if (imageFile) {
-        const imageUrl = await uploadImage(eventId);
-        if (imageUrl) {
-          await updateDoc(doc(db, "events", eventId), {
-            "media.coverImage": imageUrl,
-          });
-        }
-      }
-
-      // Save eventRules
-      if (selectedRules.length > 0) {
-        // Delete old rules if editing
-        if (formData.id) {
-          const oldRulesQuery = query(
-            collection(db, "eventRules"),
-            where("eventId", "==", eventId)
-          );
-          const oldRulesSnap = await getDocs(oldRulesQuery);
-          const batch = writeBatch(db);
-          oldRulesSnap.docs.forEach((doc) => batch.delete(doc.ref));
-          await batch.commit();
-        }
-
-        // Create new rules
+        const oldRulesQuery = query(
+          collection(db, "eventRules"),
+          where("eventId", "==", eventId)
+        );
+        const oldRulesSnap = await getDocs(oldRulesQuery);
         const batch = writeBatch(db);
-        selectedRules.forEach((rule) => {
-          const docRef = doc(collection(db, "eventRules"));
-          batch.set(docRef, {
-            eventId: eventId,
-            ruleId: rule.ruleId,
-            order: rule.order,
-            customization: rule.customization,
-            addedAt: Timestamp.now(),
-            addedBy: "admin",
-          });
-        });
+        oldRulesSnap.docs.forEach((doc) => batch.delete(doc.ref));
         await batch.commit();
       }
 
-      alert("✅ Tạo sự kiện thành công!");
-      setLoading(false);
-      onSuccess();
-      onClose();
-    } catch (error) {
-      console.error("❌ Error creating event:", error);
-      alert("Lỗi: " + error.message);
-      setLoading(false);
+      const batch = writeBatch(db);
+      selectedRules.forEach((rule) => {
+        const docRef = doc(collection(db, "eventRules"));
+        batch.set(docRef, {
+          eventId: eventId,
+          ruleId: rule.ruleId,
+          order: rule.order,
+          customization: rule.customization,
+          addedAt: Timestamp.now(),
+          addedBy: "admin",
+        });
+      });
+      await batch.commit();
     }
-  };
+
+    const successMsg = formData.id 
+      ? "✅ Cập nhật sự kiện thành công!" 
+      : "✅ Tạo sự kiện thành công!";
+    alert(successMsg);
+    setLoading(false);
+    onSuccess();
+    onClose();
+  } catch (error) {
+    console.error("❌ Error creating event:", error);
+    alert("Lỗi: " + error.message);
+    setLoading(false);
+  }
+};
 
   // Step 1: Basic Info
   const BasicInfoStep = () => (
@@ -474,146 +477,148 @@ const CreateEventModal = ({ onClose, onSuccess, eventData }) => {
       </div>
     </div>
   );
-  // Step 2: Teams Configuration
-  const TeamsStep = () => {
-    console.log("🔧 Current formData.teams:", formData.teams); // ← THÊM LOG
-    console.log("🔧 numTeams:", formData.numTeams);
-    console.log("🔧 teamCapacity:", formData.teamCapacity);
+  // 1. FIX: Auto update capacity cho tất cả teams
+const TeamsStep = () => {
+  console.log("🔧 Current formData.teams:", formData.teams);
+  console.log("🔧 numTeams:", formData.numTeams);
+  console.log("🔧 teamCapacity:", formData.teamCapacity);
 
-    const updateTeamName = (index, name) => {
-      const newTeams = [...formData.teams];
-      newTeams[index] = { ...newTeams[index], name };
-      setFormData({ ...formData, teams: newTeams });
-    };
+  const updateTeamName = (index, name) => {
+    const newTeams = [...formData.teams];
+    newTeams[index] = { ...newTeams[index], name };
+    setFormData({ ...formData, teams: newTeams });
+  };
 
-    const updateTeamCapacity = (index, capacity) => {
-      const newTeams = [...formData.teams];
-      newTeams[index] = { ...newTeams[index], capacity: parseInt(capacity) };
-      setFormData({ ...formData, teams: newTeams });
-    };
+  const updateTeamCapacity = (index, capacity) => {
+    const newTeams = [...formData.teams];
+    newTeams[index] = { ...newTeams[index], capacity: parseInt(capacity) };
+    setFormData({ ...formData, teams: newTeams });
+  };
 
-    // Generate teams chỉ khi cần
-    const generateTeams = () => {
-      const newTeams = [];
-      for (let i = 1; i <= formData.numTeams; i++) {
-        newTeams.push({
-          id: `team_${i}`,
-          name: `Team ${i}`,
-          members: [],
-          capacity: parseInt(formData.teamCapacity),
-          currentMembers: 0,
-        });
-      }
-      console.log("✨ Generated teams:", newTeams); // ← LOG TEAMS MỚI TẠO
-
-      setFormData({ ...formData, teams: newTeams });
-    };
-
-    // Chỉ generate khi chưa có teams hoặc số teams thay đổi
-    if (formData.teams.length !== formData.numTeams) {
-      generateTeams();
+  const generateTeams = () => {
+    const newTeams = [];
+    for (let i = 1; i <= formData.numTeams; i++) {
+      newTeams.push({
+        id: `team_${i}`,
+        name: `Team ${i}`,
+        members: [],
+        capacity: parseInt(formData.teamCapacity),
+        currentMembers: 0,
+      });
     }
+    console.log("✨ Generated teams:", newTeams);
+    setFormData({ ...formData, teams: newTeams });
+  };
 
-    return (
-      <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-gray-900">Cấu hình Teams</h3>
-        <p className="text-sm text-gray-600">
-          Thiết lập số lượng teams và tùy chỉnh tên, số người cho từng team
-        </p>
+  if (formData.teams.length !== formData.numTeams) {
+    generateTeams();
+  }
 
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Số lượng Teams <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="number"
-              min="1"
-              max="20"
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md"
-              value={formData.numTeams}
-              onChange={(e) => {
-                const numTeams = parseInt(e.target.value);
-                setFormData({ ...formData, numTeams, teams: [] });
-              }}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Số người/Team (mặc định) <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="number"
-              min="1"
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md"
-              value={formData.teamCapacity}
-              onChange={(e) => {
-                const newCapacity = parseInt(e.target.value);
-                // ← CẬP NHẬT CAPACITY CHO TẤT CẢ TEAMS
-                const updatedTeams = formData.teams.map((team) => ({
-                  ...team,
-                  capacity: newCapacity,
-                }));
-                setFormData((prev) => ({
-                  ...prev,
-                  teamCapacity: newCapacity,
-                  teams: updatedTeams,
-                }));
-              }}
-            />
-          </div>
+  return (
+    <div className="space-y-4">
+      <h3 className="text-lg font-semibold text-gray-900">Cấu hình Teams</h3>
+      <p className="text-sm text-gray-600">
+        Thiết lập số lượng teams và tùy chỉnh tên, số người cho từng team
+      </p>
+
+      <div className="grid grid-cols-2 gap-4 mb-6">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Số lượng Teams <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="number"
+            min="1"
+            max="20"
+            required
+            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+            value={formData.numTeams}
+            onChange={(e) => {
+              const numTeams = parseInt(e.target.value);
+              setFormData({ ...formData, numTeams, teams: [] });
+            }}
+          />
         </div>
-        <div className="space-y-3 max-h-96 overflow-y-auto">
-          {formData.teams.map((team, index) => (
-            <div
-              key={team.id}
-              className="border border-gray-200 rounded-lg p-4 bg-white"
-            >
-              <div className="grid grid-cols-3 gap-4">
-                <div className="col-span-2">
-                  <label className="block text-xs text-gray-600 mb-1">
-                    Tên Team {index + 1}
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    value={team.name}
-                    onChange={(e) => updateTeamName(index, e.target.value)}
-                    placeholder={`Team ${index + 1}`}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-600 mb-1">
-                    Số người tối đa
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    value={team.capacity}
-                    onChange={(e) => updateTeamCapacity(index, e.target.value)}
-                  />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-          <p className="text-sm text-blue-800">
-            ✓ Đã cấu hình <strong>{formData.teams.length}</strong> teams với
-            tổng{" "}
-            <strong>
-              {formData.teams.reduce((sum, t) => sum + t.capacity, 0)}
-            </strong>{" "}
-            chỗ
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Số người/Team (mặc định) <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="number"
+            min="1"
+            required
+            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+            value={formData.teamCapacity}
+            onChange={(e) => {
+              const newCapacity = parseInt(e.target.value);
+              
+              // ✅ FIX: Cập nhật capacity cho TẤT CẢ teams
+              const updatedTeams = formData.teams.map(team => ({
+                ...team,
+                capacity: newCapacity
+              }));
+              
+              setFormData({
+                ...formData,
+                teamCapacity: newCapacity,
+                teams: updatedTeams // ← Cập nhật luôn
+              });
+            }}
+          />
+          <p className="text-xs text-blue-600 mt-1">
+            💡 Thay đổi số này sẽ tự động cập nhật capacity cho tất cả teams bên dưới
           </p>
         </div>
       </div>
-    );
-  };
+
+      <div className="space-y-3 max-h-96 overflow-y-auto">
+        {formData.teams.map((team, index) => (
+          <div
+            key={team.id}
+            className="border border-gray-200 rounded-lg p-4 bg-white"
+          >
+            <div className="grid grid-cols-3 gap-4">
+              <div className="col-span-2">
+                <label className="block text-xs text-gray-600 mb-1">
+                  Tên Team {index + 1}
+                </label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  value={team.name}
+                  onChange={(e) => updateTeamName(index, e.target.value)}
+                  placeholder={`Team ${index + 1}`}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">
+                  Số người tối đa
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  value={team.capacity}
+                  onChange={(e) => updateTeamCapacity(index, e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+        <p className="text-sm text-blue-800">
+          ✓ Đã cấu hình <strong>{formData.teams.length}</strong> teams với tổng{" "}
+          <strong>
+            {formData.teams.reduce((sum, t) => sum + t.capacity, 0)}
+          </strong>{" "}
+          chỗ
+        </p>
+      </div>
+    </div>
+  );
+};
   // Step 2: Select Rules
   const SelectRulesStep = () => (
     <div className="space-y-4">

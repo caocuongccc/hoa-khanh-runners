@@ -8,12 +8,16 @@ import {
   Target,
   Calendar,
   Zap,
+  RefreshCw,
 } from "lucide-react";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "../../services/firebase";
+import { syncUserActivities } from "../../services/strava-sync";
+import { validateAndCalculatePoints } from "../../services/member-service";
 
 const EventDashboard = ({ event, user, onBack }) => {
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [stats, setStats] = useState({
     totalParticipants: 0,
     totalDistance: 0,
@@ -29,6 +33,59 @@ const EventDashboard = ({ event, user, onBack }) => {
     loadDashboardData();
   }, [event.id]);
 
+  const handleSyncAndValidate = async () => {
+    // Check token expiry first
+    const tokenExpiry = user.stravaIntegration?.tokenExpiry;
+    const now = Date.now() / 1000;
+    
+    if (!user.stravaIntegration?.isConnected || !user.stravaIntegration?.accessToken) {
+      alert("❌ Chưa kết nối Strava. Vui lòng kết nối tài khoản Strava trước.");
+      return;
+    }
+
+    if (tokenExpiry && tokenExpiry < now + 3600) {
+      alert("❌ Token Strava đã hết hạn hoặc sắp hết hạn.\n\nVui lòng quay lại trang chủ và kết nối lại Strava.");
+      return;
+    }
+
+    setSyncing(true);
+    try {
+      // 1. Sync activities from Strava
+      const syncResult = await syncUserActivities(
+        user,
+        event.startDate,
+        event.endDate
+      );
+
+      if (!syncResult.success) {
+        alert("❌ Lỗi đồng bộ: " + syncResult.error);
+        setSyncing(false);
+        return;
+      }
+
+      // 2. Validate and calculate points
+      const validateResult = await validateAndCalculatePoints(event.id, user.uid);
+
+      if (validateResult.success) {
+        alert(`✅ Đồng bộ thành công!\n\n` +
+          `📊 Hoạt động: ${validateResult.totalActivities}\n` +
+          `✅ Hợp lệ: ${validateResult.validActivities}\n` +
+          `🏃 Tổng km: ${validateResult.totalDistance.toFixed(2)}\n` +
+          `⭐ Điểm: ${validateResult.totalPoints}`
+        );
+        
+        // Reload dashboard
+        await loadDashboardData();
+      } else {
+        alert("❌ Lỗi tính điểm: " + validateResult.error);
+      }
+    } catch (error) {
+      console.error("Error syncing:", error);
+      alert("❌ Lỗi: " + error.message);
+    }
+    setSyncing(false);
+  };
+
   const loadDashboardData = async () => {
     setLoading(true);
     try {
@@ -42,6 +99,8 @@ const EventDashboard = ({ event, user, onBack }) => {
         id: doc.id,
         ...doc.data()
       }));
+
+      console.log("👥 Participants:", participants.length);
 
       // Calculate overall stats
       let totalDistance = 0;
@@ -59,19 +118,36 @@ const EventDashboard = ({ event, user, onBack }) => {
       let maleCount = 0;
       let femaleCount = 0;
 
-      participants.forEach(participant => {
-        const distance = participant.progress?.totalDistance || 0;
-        const activities = participant.progress?.totalActivities || 0;
-        const points = participant.progress?.totalPoints || 0;
-        const teamId = participant.teamId;
-
-        totalDistance += distance;
-        totalActivities += activities;
-
-        // Count gender
+      // Get activities for each participant WITHIN event dates
+      for (const participant of participants) {
         const userGender = usersMap[participant.userId]?.gender;
         if (userGender === "male") maleCount++;
         else if (userGender === "female") femaleCount++;
+
+        // Get activities within event timeframe
+        const activitiesQuery = query(
+          collection(db, "trackLogs"),
+          where("userId", "==", participant.userId),
+          where("date", ">=", event.startDate),
+          where("date", "<=", event.endDate)
+        );
+        const activitiesSnap = await getDocs(activitiesQuery);
+        
+        let userDistance = 0;
+        let userActivities = activitiesSnap.size;
+
+        activitiesSnap.docs.forEach(doc => {
+          const activity = doc.data();
+          userDistance += activity.distance || 0;
+        });
+
+        // Calculate points: 1km = 1 point (2 decimal places)
+        const userPoints = parseFloat(userDistance.toFixed(2));
+
+        totalDistance += userDistance;
+        totalActivities += userActivities;
+
+        const teamId = participant.teamId;
 
         // Aggregate by team
         if (!teamStats[teamId]) {
@@ -87,32 +163,37 @@ const EventDashboard = ({ event, user, onBack }) => {
           };
         }
 
-        teamStats[teamId].totalDistance += distance;
-        teamStats[teamId].totalActivities += activities;
-        teamStats[teamId].totalPoints += points;
+        teamStats[teamId].totalDistance += userDistance;
+        teamStats[teamId].totalActivities += userActivities;
+        teamStats[teamId].totalPoints += userPoints;
         teamStats[teamId].memberCount += 1;
         teamStats[teamId].members.push({
           userId: participant.userId,
           userName: participant.userName,
-          distance,
-          activities,
-          points,
+          distance: userDistance,
+          activities: userActivities,
+          points: userPoints,
           avatar: usersMap[participant.userId]?.avatarUrl || `https://i.pravatar.cc/150?u=${participant.userId}`
         });
-      });
+      }
 
-      // Convert to array and sort
+      // Convert to array and sort by points
       const teamsArray = Object.values(teamStats).sort(
         (a, b) => b.totalPoints - a.totalPoints
       );
 
-      // Add rank
+      // Add rank and round values
       teamsArray.forEach((team, index) => {
         team.rank = index + 1;
-        // Sort members within team
+        team.totalDistance = parseFloat(team.totalDistance.toFixed(2));
+        team.totalPoints = parseFloat(team.totalPoints.toFixed(2));
+        
+        // Sort members within team by points
         team.members.sort((a, b) => b.points - a.points);
         team.members.forEach((member, idx) => {
           member.rank = idx + 1;
+          member.distance = parseFloat(member.distance.toFixed(2));
+          member.points = parseFloat(member.points.toFixed(2));
         });
       });
 
@@ -181,7 +262,7 @@ const EventDashboard = ({ event, user, onBack }) => {
             <div className="bg-green-50 rounded-lg p-4">
               <p className="text-sm text-gray-600 mb-1">Tổng km</p>
               <p className="text-2xl font-bold text-green-600">
-                {selectedTeam.totalDistance.toFixed(2)}
+                {selectedTeam.totalDistance}
               </p>
             </div>
             <div className="bg-purple-50 rounded-lg p-4">
@@ -232,7 +313,7 @@ const EventDashboard = ({ event, user, onBack }) => {
                     )}
                   </p>
                   <div className="flex gap-4 text-sm text-gray-600">
-                    <span>{member.distance.toFixed(2)} km</span>
+                    <span className="font-medium text-blue-600">{member.distance} km</span>
                     <span>•</span>
                     <span>{member.activities} hoạt động</span>
                   </div>
@@ -263,12 +344,24 @@ const EventDashboard = ({ event, user, onBack }) => {
       </button>
 
       <div className="bg-gradient-to-r from-blue-600 to-blue-400 rounded-2xl p-8 text-white">
-        <h1 className="text-3xl font-bold mb-2">{event.name}</h1>
-        <div className="flex items-center gap-4 text-sm opacity-90">
-          <span className="flex items-center gap-1">
-            <Calendar className="w-4 h-4" />
-            {event.startDate} - {event.endDate}
-          </span>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold mb-2">{event.name}</h1>
+            <div className="flex items-center gap-4 text-sm opacity-90">
+              <span className="flex items-center gap-1">
+                <Calendar className="w-4 h-4" />
+                {event.startDate} - {event.endDate}
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={handleSyncAndValidate}
+            disabled={syncing}
+            className="flex items-center gap-2 px-6 py-3 bg-white text-blue-600 rounded-lg hover:bg-blue-50 font-semibold disabled:opacity-50"
+          >
+            <RefreshCw className={`w-5 h-5 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? "Đang đồng bộ..." : "Đồng bộ & Tính điểm"}
+          </button>
         </div>
       </div>
 
@@ -364,7 +457,7 @@ const EventDashboard = ({ event, user, onBack }) => {
                     <Users className="w-4 h-4" />
                     {team.memberCount} thành viên
                   </span>
-                  <span>{team.totalDistance.toFixed(2)} km</span>
+                  <span className="font-medium text-blue-600">{team.totalDistance} km</span>
                   <span>{team.totalActivities} hoạt động</span>
                 </div>
               </div>

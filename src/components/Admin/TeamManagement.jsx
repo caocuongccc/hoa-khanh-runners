@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { Search, Users, Filter, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Users, Filter, ChevronLeft, ChevronRight, UserX, AlertCircle } from "lucide-react";
 import { getEvents } from "../../services/firebase-service";
+import { doc, updateDoc, getDoc, deleteDoc, query, collection, where, getDocs } from "firebase/firestore";
+import { db } from "../../services/firebase";
 
 const TeamManagement = () => {
   const [events, setEvents] = useState([]);
@@ -61,6 +63,68 @@ const TeamManagement = () => {
   const goToPage = (page) => {
     if (page >= 1 && page <= totalPages) {
       setCurrentPage(page);
+    }
+  };
+
+  const handleRemoveUser = async (userId, userName, teamId) => {
+    if (!window.confirm(`Bạn có chắc muốn xóa ${userName} khỏi team này?`)) {
+      return;
+    }
+
+    try {
+      const eventRef = doc(db, "events", selectedEvent.id);
+      const eventSnap = await getDoc(eventRef);
+      
+      if (!eventSnap.exists()) {
+        alert("❌ Event không tồn tại");
+        return;
+      }
+
+      const eventData = eventSnap.data();
+      const teams = eventData.teams || [];
+
+      // Update team: remove user from members, decrease currentMembers
+      const updatedTeams = teams.map(team => {
+        if (team.id === teamId) {
+          return {
+            ...team,
+            currentMembers: Math.max(0, (team.currentMembers || 0) - 1),
+            members: (team.members || []).filter(m => m.userId !== userId)
+          };
+        }
+        return team;
+      });
+
+      // Update event
+      await updateDoc(eventRef, {
+        teams: updatedTeams,
+        "registration.currentParticipants": Math.max(0, (eventData.registration?.currentParticipants || 0) - 1)
+      });
+
+      // Delete participant record
+      const participantQuery = query(
+        collection(db, "eventParticipants"),
+        where("eventId", "==", selectedEvent.id),
+        where("userId", "==", userId)
+      );
+      const participantSnap = await getDocs(participantQuery);
+      
+      if (!participantSnap.empty) {
+        await deleteDoc(participantSnap.docs[0].ref);
+      }
+
+      alert("✅ Đã xóa thành viên khỏi team!");
+      
+      // Reload data
+      const result = await getEvents();
+      if (result.success) {
+        const updatedEvent = result.data.find(e => e.id === selectedEvent.id);
+        setSelectedEvent(updatedEvent);
+        setEvents(result.data);
+      }
+    } catch (error) {
+      console.error("Error removing user:", error);
+      alert("❌ Lỗi: " + error.message);
     }
   };
 
@@ -297,6 +361,10 @@ const TeamManagement = () => {
           </span>
           <span>•</span>
           <span>{selectedEvent.teams?.length || 0} teams</span>
+          <span>•</span>
+          <span>
+            {selectedEvent.teams?.reduce((sum, t) => sum + (t.currentMembers || 0), 0)} thành viên
+          </span>
         </div>
 
         {/* Teams Grid */}
@@ -336,10 +404,19 @@ const TeamManagement = () => {
                   {team.members.map((member, idx) => (
                     <div
                       key={idx}
-                      className="flex items-center gap-2 text-sm text-gray-700"
+                      className="flex items-center justify-between gap-2 text-sm text-gray-700 bg-white p-2 rounded hover:bg-gray-50"
                     >
-                      <Users className="w-3 h-3" />
-                      <span>{member.userName}</span>
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <Users className="w-3 h-3 flex-shrink-0" />
+                        <span className="truncate">{member.userName}</span>
+                      </div>
+                      <button
+                        onClick={() => handleRemoveUser(member.userId, member.userName, team.id)}
+                        className="flex-shrink-0 p-1 text-red-600 hover:bg-red-50 rounded"
+                        title="Xóa khỏi team"
+                      >
+                        <UserX className="w-4 h-4" />
+                      </button>
                     </div>
                   ))}
                 </div>

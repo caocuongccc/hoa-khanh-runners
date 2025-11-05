@@ -22,6 +22,8 @@ import {
 import { getStravaAuthUrl } from "../../services/strava-service";
 import { syncUserActivities } from "../../services/strava-sync";
 import { logoutUser } from "../../services/auth-service";
+import { collection, query, where, getDocs } from "firebase/firestore";
+import { db } from "../../services/firebase";
 import EventRegistrationModal from "./EventRegistrationModal";
 import EventDashboard from "./EventDashboard";
 
@@ -29,9 +31,12 @@ const MemberDashboard = ({ user, onLogout }) => {
   const [currentPage, setCurrentPage] = useState("home");
   const [events, setEvents] = useState([]);
   const [myEvents, setMyEvents] = useState([]);
+  const [myActivities, setMyActivities] = useState([]);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [activitiesLoading, setActivitiesLoading] = useState(false);
   const [syncStatus, setSyncStatus] = useState({ syncing: false, message: "" });
+  const [tokenExpired, setTokenExpired] = useState(false);
 
   const stravaConnected = user?.stravaIntegration?.isConnected || false;
   const [showRegisterModal, setShowRegisterModal] = useState(false);
@@ -39,7 +44,21 @@ const MemberDashboard = ({ user, onLogout }) => {
 
   useEffect(() => {
     loadEvents();
+    loadMyActivities();
+    checkTokenExpiry();
   }, []);
+
+  const checkTokenExpiry = () => {
+    if (user?.stravaIntegration?.isConnected) {
+      const tokenExpiry = user.stravaIntegration.tokenExpiry;
+      const now = Date.now() / 1000;
+      
+      // Check if token expired or will expire in next hour
+      if (tokenExpiry && tokenExpiry < now + 3600) {
+        setTokenExpired(true);
+      }
+    }
+  };
 
   const loadEvents = async () => {
     setLoading(true);
@@ -61,6 +80,35 @@ const MemberDashboard = ({ user, onLogout }) => {
       setMyEvents(registeredEvents);
     }
     setLoading(false);
+  };
+
+  const loadMyActivities = async () => {
+    setActivitiesLoading(true);
+    try {
+      const q = query(
+        collection(db, "trackLogs"),
+        where("userId", "==", user.uid)
+      );
+      const snapshot = await getDocs(q);
+      const activities = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      // Sort by date descending
+      activities.sort((a, b) => {
+        const dateA = a.startDateTime?.toDate ? a.startDateTime.toDate() : new Date(a.date);
+        const dateB = b.startDateTime?.toDate ? b.startDateTime.toDate() : new Date(b.date);
+        return dateB - dateA;
+      });
+      
+      setMyActivities(activities);
+      console.log("📊 Loaded activities:", activities.length);
+    } catch (error) {
+      console.error("Error loading activities:", error);
+      setMyActivities([]); // ← Set empty array on error
+    }
+    setActivitiesLoading(false);
   };
 
   const handleConnectStrava = () => {
@@ -115,6 +163,21 @@ const MemberDashboard = ({ user, onLogout }) => {
     setShowRegisterModal(true);
   };
 
+  // Helper functions - MUST BE BEFORE USING THEM
+  const formatPace = (seconds) => {
+    if (!seconds || seconds === 0) return "0:00/km";
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.round(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, "0")}/km`;
+  };
+
+  const formatDuration = (seconds) => {
+    if (!seconds) return "0h 0m";
+    const hours = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+  };
+
   // Header Component
   const Header = () => (
     <header className="bg-white shadow-sm sticky top-0 z-50">
@@ -159,6 +222,17 @@ const MemberDashboard = ({ user, onLogout }) => {
               <span className="font-medium">Sự kiện của tôi</span>
             </button>
             <button
+              onClick={() => setCurrentPage("activities")}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
+                currentPage === "activities"
+                  ? "bg-blue-50 text-blue-600"
+                  : "text-gray-600 hover:bg-gray-50"
+              }`}
+            >
+              <Activity className="w-5 h-5" />
+              <span className="font-medium">Hoạt động</span>
+            </button>
+            <button
               onClick={() => setCurrentPage("events")}
               className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
                 currentPage === "events"
@@ -167,7 +241,7 @@ const MemberDashboard = ({ user, onLogout }) => {
               }`}
             >
               <Calendar className="w-5 h-5" />
-              <span className="font-medium">Sự kiện</span>
+              <span className="font-medium">Khám phá</span>
             </button>
           </nav>
 
@@ -193,27 +267,52 @@ const MemberDashboard = ({ user, onLogout }) => {
   const StravaConnectCard = () => (
     <div className="mb-6">
       {stravaConnected ? (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Check className="w-6 h-6 text-green-600" />
-            <div>
-              <p className="font-semibold text-green-800">Đã kết nối Strava</p>
-              <p className="text-sm text-green-600">
-                Hoạt động sẽ được tự động đồng bộ
-              </p>
+        <>
+          {tokenExpired ? (
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 flex items-center justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
+                  <Link2 className="w-5 h-5 text-orange-600" />
+                </div>
+                <div>
+                  <p className="font-semibold text-orange-800">Token Strava đã hết hạn</p>
+                  <p className="text-sm text-orange-600">
+                    Vui lòng kết nối lại để tiếp tục đồng bộ hoạt động
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleConnectStrava}
+                className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 flex items-center gap-2"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Kết nối lại
+              </button>
             </div>
+          ) : null}
+          
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Check className="w-6 h-6 text-green-600" />
+              <div>
+                <p className="font-semibold text-green-800">Đã kết nối Strava</p>
+                <p className="text-sm text-green-600">
+                  Hoạt động sẽ được tự động đồng bộ
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handleSyncActivities}
+              disabled={syncStatus.syncing || tokenExpired}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <RefreshCw
+                className={`w-4 h-4 ${syncStatus.syncing ? "animate-spin" : ""}`}
+              />
+              {syncStatus.syncing ? "Đang đồng bộ..." : "Đồng bộ ngay"}
+            </button>
           </div>
-          <button
-            onClick={handleSyncActivities}
-            disabled={syncStatus.syncing}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2 disabled:opacity-50"
-          >
-            <RefreshCw
-              className={`w-4 h-4 ${syncStatus.syncing ? "animate-spin" : ""}`}
-            />
-            {syncStatus.syncing ? "Đang đồng bộ..." : "Đồng bộ ngay"}
-          </button>
-        </div>
+        </>
       ) : (
         <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
           <div className="flex items-start gap-4">
@@ -596,6 +695,109 @@ const MemberDashboard = ({ user, onLogout }) => {
     </div>
   );
 
+  // Activities Page - MOVED HERE BEFORE EventDetailPage
+  const ActivitiesPage = () => (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold text-gray-900">Hoạt động của tôi</h1>
+        <button
+          onClick={loadMyActivities}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        >
+          <RefreshCw className="w-4 h-4" />
+          Làm mới
+        </button>
+      </div>
+
+      {activitiesLoading ? (
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+        </div>
+      ) : myActivities.length === 0 ? (
+        <div className="bg-white rounded-xl shadow-md p-12 text-center">
+          <Activity className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <p className="text-gray-500 mb-2">Chưa có hoạt động nào</p>
+          <p className="text-sm text-gray-400 mb-4">
+            Nhấn nút "Đồng bộ Strava" ở trên để tải hoạt động
+          </p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl shadow-md overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Tên
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Ngày
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Khoảng cách
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Thời gian
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Pace
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Độ cao
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {myActivities.map((activity) => (
+                  <tr key={activity.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="font-medium text-gray-900">
+                        {activity.name}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {activity.type || "Run"}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                      {activity.date}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-bold text-gray-900">
+                        {activity.distance?.toFixed(2)} km
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                      {activity.duration?.movingTimeFormatted || 
+                        formatDuration(activity.duration?.movingTime || 0)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                      {activity.pace?.averageFormatted || 
+                        formatPace(activity.pace?.average || 0)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                      {activity.elevation?.total || 0}m
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          
+          <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
+            <div className="flex items-center justify-between text-sm text-gray-600">
+              <span>Tổng: <strong>{myActivities.length}</strong> hoạt động</span>
+              <span>
+                Tổng km: <strong className="text-blue-600">
+                  {myActivities.reduce((sum, a) => sum + (a.distance || 0), 0).toFixed(2)}
+                </strong>
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   // Event Detail Page (simplified, just show info)
   const EventDetailPage = () => {
     if (!selectedEvent) return null;
@@ -690,6 +892,7 @@ const MemberDashboard = ({ user, onLogout }) => {
         <StravaConnectCard />
         {currentPage === "home" && <HomePage />}
         {currentPage === "my-events" && <MyEventsPage />}
+        {currentPage === "activities" && <ActivitiesPage />}
         {currentPage === "events" && <EventsPage />}
         {currentPage === "event-detail" && <EventDetailPage />}
         {currentPage === "event-dashboard" && selectedEvent && (
