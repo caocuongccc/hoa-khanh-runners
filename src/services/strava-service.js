@@ -28,6 +28,7 @@ export const exchangeToken = async (code) => {
     }
 
     const data = await response.json();
+    console.log('✅ Exchanged token from Strava:', JSON.stringify(data));
     return {
       success: true,
       data: {

@@ -122,25 +122,60 @@ const MemberDashboard = ({ user, onLogout }) => {
       return;
     }
 
+    if (tokenExpired) {
+      alert("Token Strava đã hết hạn. Vui lòng kết nối lại!");
+      return;
+    }
+
     setSyncStatus({ syncing: true, message: "Đang đồng bộ..." });
 
-    const result = await syncUserActivities(
-      user,
-      "2024-01-01",
-      new Date().toISOString().split("T")[0]
-    );
+    // Sync all activities from all registered events
+    let totalSaved = 0;
+    let totalUpdated = 0;
+    let totalActivities = 0;
 
-    if (result.success) {
-      setSyncStatus({
-        syncing: false,
-        message: `✅ Đồng bộ thành công ${result.saved}/${result.total} hoạt động!`,
-      });
-    } else {
-      setSyncStatus({
-        syncing: false,
-        message: `❌ Lỗi: ${result.error}`,
-      });
+    for (const event of myEvents) {
+      console.log(`🔄 Syncing activities for event: ${event.name}`);
+      console.log(`📅 Date range: ${event.startDate} → ${event.endDate}`);
+      
+      const result = await syncUserActivities(
+        user,
+        event.startDate,
+        event.endDate
+      );
+
+      if (result.success) {
+        totalSaved += result.saved;
+        totalUpdated += result.updated;
+        totalActivities += result.total;
+      }
     }
+
+    if (myEvents.length === 0) {
+      // If no events, sync last 30 days
+      const endDate = new Date().toISOString().split("T")[0];
+      const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .split("T")[0];
+      
+      console.log(`🔄 Syncing recent activities: ${startDate} → ${endDate}`);
+      
+      const result = await syncUserActivities(user, startDate, endDate);
+      
+      if (result.success) {
+        totalSaved = result.saved;
+        totalUpdated = result.updated;
+        totalActivities = result.total;
+      }
+    }
+
+    setSyncStatus({
+      syncing: false,
+      message: `✅ Đồng bộ thành công! ${totalSaved} mới, ${totalUpdated} cập nhật (${totalActivities} tổng)`,
+    });
+
+    // Reload activities
+    await loadMyActivities();
 
     setTimeout(() => setSyncStatus({ syncing: false, message: "" }), 5000);
   };

@@ -11,18 +11,16 @@ const StravaCallback = ({ currentUser }) => {
   useEffect(() => {
     const handleCallback = async () => {
       const code = searchParams.get("code");
-      alert(code);
       if (code && currentUser) {
         try {
           const tokens = await exchangeToken(code);
-          alert(tokens);
           // Lưu tokens vào Firestore
           await updateDoc(doc(db, "users", currentUser.uid), {
             "stravaIntegration.isConnected": true,
-            "stravaIntegration.stravaUserId": tokens.athlete.id.toString(),
-            "stravaIntegration.accessToken": tokens.accessToken,
-            "stravaIntegration.refreshToken": tokens.refreshToken,
-            "stravaIntegration.tokenExpiry": tokens.expiresAt,
+            "stravaIntegration.stravaUserId": tokens.data.athleteId,
+            "stravaIntegration.accessToken": tokens.data.accessToken,
+            "stravaIntegration.refreshToken": tokens.data.refreshToken,
+            "stravaIntegration.tokenExpiry": tokens.data.expiresAt,
           });
 
           alert("Kết nối Strava thành công!");
