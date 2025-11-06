@@ -15,13 +15,17 @@
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.9.4",
     "react-scripts": "5.0.1",
-    "web-vitals": "^2.1.4"
+    "web-vitals": "^2.1.4",
+    "firebase-admin": "^12.0.0",
+    "node-fetch": "^3.3.2"
   },
   "scripts": {
     "start": "craco start",
     "build": "craco build",
     "test": "craco test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "start:webhook": "node api/stravaWebhook.js"
+
   },
   "eslintConfig": {
     "extends": [
