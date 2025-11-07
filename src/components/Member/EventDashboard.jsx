@@ -28,6 +28,8 @@ const EventDashboard = ({ event, user, onBack }) => {
   const [teamLeaderboard, setTeamLeaderboard] = useState([]);
   const [selectedTeam, setSelectedTeam] = useState(null);
   const [teamMembers, setTeamMembers] = useState([]);
+  const [selectedMember, setSelectedMember] = useState(null);
+  const [memberActivities, setMemberActivities] = useState([]);
 
   useEffect(() => {
     loadDashboardData();
@@ -120,6 +122,8 @@ const EventDashboard = ({ event, user, onBack }) => {
 
       // Get activities for each participant WITHIN event dates
       for (const participant of participants) {
+        console.log(`\n👤 Processing user: ${participant.userName} (${participant.userId})`);
+        
         const userGender = usersMap[participant.userId]?.gender;
         if (userGender === "male") maleCount++;
         else if (userGender === "female") femaleCount++;
@@ -133,16 +137,22 @@ const EventDashboard = ({ event, user, onBack }) => {
         );
         const activitiesSnap = await getDocs(activitiesQuery);
         
+        console.log(`📊 Found ${activitiesSnap.size} activities for ${participant.userName}`);
+        
         let userDistance = 0;
         let userActivities = activitiesSnap.size;
 
         activitiesSnap.docs.forEach(doc => {
           const activity = doc.data();
-          userDistance += activity.distance || 0;
+          const dist = activity.distance || 0;
+          userDistance += dist;
+          console.log(`  - ${activity.name}: ${dist.toFixed(2)} km on ${activity.date}`);
         });
 
         // Calculate points: 1km = 1 point (2 decimal places)
         const userPoints = parseFloat(userDistance.toFixed(2));
+
+        console.log(`✅ Total for ${participant.userName}: ${userDistance.toFixed(2)} km = ${userPoints} points`);
 
         totalDistance += userDistance;
         totalActivities += userActivities;

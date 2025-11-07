@@ -19,10 +19,10 @@ import {
   isUserRegistered,
   getLeaderboard,
 } from "../../services/member-service";
-import { getStravaAuthUrl } from "../../services/strava-service";
+import { getStravaAuthUrl, refreshStravaToken } from "../../services/strava-service";
 import { syncUserActivities } from "../../services/strava-sync";
 import { logoutUser } from "../../services/auth-service";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, updateDoc } from "firebase/firestore";
 import { db } from "../../services/firebase";
 import EventRegistrationModal from "./EventRegistrationModal";
 import EventDashboard from "./EventDashboard";
@@ -37,27 +37,118 @@ const MemberDashboard = ({ user, onLogout }) => {
   const [activitiesLoading, setActivitiesLoading] = useState(false);
   const [syncStatus, setSyncStatus] = useState({ syncing: false, message: "" });
   const [tokenExpired, setTokenExpired] = useState(false);
+  const [refreshingToken, setRefreshingToken] = useState(false);
 
   const stravaConnected = user?.stravaIntegration?.isConnected || false;
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [registeringEvent, setRegisteringEvent] = useState(null);
 
   useEffect(() => {
-    loadEvents();
-    loadMyActivities();
-    checkTokenExpiry();
+    const init = async () => {
+      await checkTokenExpiry();
+      await loadEvents();
+      await loadMyActivities();
+    };
+    init();
   }, []);
 
-  const checkTokenExpiry = () => {
+  const checkTokenExpiry = async () => {
     if (user?.stravaIntegration?.isConnected) {
       const tokenExpiry = user.stravaIntegration.tokenExpiry;
+      const refreshToken = user.stravaIntegration.refreshToken;
       const now = Date.now() / 1000;
       
-      // Check if token expired or will expire in next hour
-      if (tokenExpiry && tokenExpiry < now + 3600) {
-        setTokenExpired(true);
+      // If token expired or will expire in next 24 hours
+      if (tokenExpiry && tokenExpiry < now + 86400) {
+        console.log('⚠️ Token expiring soon, attempting auto refresh...');
+        
+        if (refreshToken) {
+          await handleAutoRefreshToken(refreshToken);
+        } else {
+          setTokenExpired(true);
+        }
+      } else {
+        console.log('✅ Token still valid');
+        // Token OK, trigger auto sync if needed
+        await autoSyncIfNeeded();
       }
     }
+  };
+
+  const autoSyncIfNeeded = async () => {
+    // Check last sync time from localStorage
+    const lastSync = localStorage.getItem(`lastSync_${user.uid}`);
+    const now = Date.now();
+    const ONE_HOUR = 60 * 60 * 1000;
+
+    if (!lastSync || (now - parseInt(lastSync)) > ONE_HOUR) {
+      console.log('🔄 Auto syncing activities (last sync > 1 hour)...');
+      await handleSyncActivities();
+      localStorage.setItem(`lastSync_${user.uid}`, now.toString());
+    } else {
+      console.log('✅ Recent sync exists, skipping auto sync');
+    }
+  };
+
+  // const checkTokenExpiry = async () => {
+  //   if (user?.stravaIntegration?.isConnected) {
+  //     const tokenExpiry = user.stravaIntegration.tokenExpiry;
+  //     const refreshToken = user.stravaIntegration.refreshToken;
+  //     const now = Date.now() / 1000;
+      
+  //     // If token expired or will expire in next 24 hours
+  //     if (tokenExpiry && tokenExpiry < now + 86400) {
+  //       console.log('⚠️ Token expiring soon, attempting auto refresh...');
+        
+  //       if (refreshToken) {
+  //         await handleAutoRefreshToken(refreshToken);
+  //       } else {
+  //         setTokenExpired(true);
+  //       }
+  //     }
+  //   }
+  // };
+
+  const handleAutoRefreshToken = async (refreshToken) => {
+    setRefreshingToken(true);
+    
+    try {
+      const result = await refreshStravaToken(refreshToken);
+      
+      if (result.success) {
+        // Update user document in Firestore
+        await updateDoc(doc(db, "users", user.uid), {
+          "stravaIntegration.accessToken": result.data.accessToken,
+          "stravaIntegration.refreshToken": result.data.refreshToken,
+          "stravaIntegration.tokenExpiry": result.data.expiresAt,
+        });
+
+        // Update local user object
+        user.stravaIntegration.accessToken = result.data.accessToken;
+        user.stravaIntegration.refreshToken = result.data.refreshToken;
+        user.stravaIntegration.tokenExpiry = result.data.expiresAt;
+
+        setTokenExpired(false);
+        console.log('✅ Token refreshed successfully');
+        
+        setSyncStatus({
+          syncing: false,
+          message: "✅ Đã tự động làm mới kết nối Strava"
+        });
+        
+        setTimeout(() => {
+          setSyncStatus({ syncing: false, message: "" });
+        }, 3000);
+      } else {
+        console.error('❌ Failed to refresh token:', result.error);
+        setTokenExpired(true);
+      }
+    } catch (error) {
+      console.error('❌ Error auto-refreshing token:', error);
+      setTokenExpired(true);
+    }
+    
+    setRefreshingToken(false);
   };
 
   const loadEvents = async () => {
@@ -303,7 +394,16 @@ const MemberDashboard = ({ user, onLogout }) => {
     <div className="mb-6">
       {stravaConnected ? (
         <>
-          {tokenExpired ? (
+          {refreshingToken && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center gap-3 mb-3">
+              <RefreshCw className="w-5 h-5 text-blue-600 animate-spin" />
+              <p className="text-sm text-blue-700">
+                Đang tự động làm mới kết nối Strava...
+              </p>
+            </div>
+          )}
+          
+          {tokenExpired && !refreshingToken ? (
             <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
@@ -312,7 +412,7 @@ const MemberDashboard = ({ user, onLogout }) => {
                 <div>
                   <p className="font-semibold text-orange-800">Token Strava đã hết hạn</p>
                   <p className="text-sm text-orange-600">
-                    Vui lòng kết nối lại để tiếp tục đồng bộ hoạt động
+                    Không thể làm mới tự động. Vui lòng kết nối lại.
                   </p>
                 </div>
               </div>
@@ -338,7 +438,7 @@ const MemberDashboard = ({ user, onLogout }) => {
             </div>
             <button
               onClick={handleSyncActivities}
-              disabled={syncStatus.syncing || tokenExpired}
+              disabled={syncStatus.syncing || tokenExpired || refreshingToken}
               className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <RefreshCw
@@ -730,108 +830,188 @@ const MemberDashboard = ({ user, onLogout }) => {
     </div>
   );
 
-  // Activities Page - MOVED HERE BEFORE EventDetailPage
-  const ActivitiesPage = () => (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">Hoạt động của tôi</h1>
-        <button
-          onClick={loadMyActivities}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Làm mới
-        </button>
-      </div>
+  // Activities Page - WITH MAP VIEW (No Mapbox needed)
+  const ActivitiesPage = () => {
+    const [viewMode, setViewMode] = useState("list");
 
-      {activitiesLoading ? (
-        <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-        </div>
-      ) : myActivities.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-md p-12 text-center">
-          <Activity className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500 mb-2">Chưa có hoạt động nào</p>
-          <p className="text-sm text-gray-400 mb-4">
-            Nhấn nút "Đồng bộ Strava" ở trên để tải hoạt động
-          </p>
-        </div>
-      ) : (
-        <div className="bg-white rounded-xl shadow-md overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Tên
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Ngày
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Khoảng cách
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Thời gian
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Pace
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Độ cao
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {myActivities.map((activity) => (
-                  <tr key={activity.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="font-medium text-gray-900">
-                        {activity.name}
+    // Generate static map URL from polyline
+    const getMapImageUrl = (polyline, width = 400, height = 300) => {
+      if (!polyline) return null;
+      
+      // Option 1: Use Google Maps Static API (FREE 28,000 requests/month)
+      // Cần Google Maps API key, nhưng không cần thẻ
+      const GOOGLE_MAPS_KEY = process.env.REACT_APP_GOOGLE_MAPS_KEY;
+      
+      if (GOOGLE_MAPS_KEY) {
+        return `https://maps.googleapis.com/maps/api/staticmap?size=${width}x${height}&path=enc:${polyline}&key=${GOOGLE_MAPS_KEY}`;
+      }
+      
+      // Option 2: Use OpenStreetMap + Polyline overlay
+      // Hoàn toàn FREE, không cần API key
+      return `https://staticmap.openstreetmap.de/staticmap.php?center=auto&zoom=14&size=${width}x${height}&path=enc:${polyline}&markers=0,0,red`;
+    };
+
+    const ActivityCard = ({ activity }) => {
+      const mapUrl = getMapImageUrl(activity.map?.summaryPolyline, 600, 400);
+      
+      return (
+        <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
+          {viewMode === "map" && activity.map?.summaryPolyline && (
+            <div className="h-48 bg-gray-100 relative">
+              {mapUrl ? (
+                <img
+                  src={mapUrl}
+                  alt="Route"
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    // Fallback: Show simple placeholder
+                    e.target.style.display = 'none';
+                    const placeholder = document.createElement('div');
+                    placeholder.className = 'w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-100 to-blue-50';
+                    placeholder.innerHTML = `
+                      <div class="text-center">
+                        <svg class="w-12 h-12 mx-auto text-blue-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                        </svg>
+                        <p class="text-sm text-gray-500">${activity.distance?.toFixed(2)} km</p>
                       </div>
-                      <div className="text-xs text-gray-500">
-                        {activity.type || "Run"}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {activity.date}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-bold text-gray-900">
-                        {activity.distance?.toFixed(2)} km
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {activity.duration?.movingTimeFormatted || 
-                        formatDuration(activity.duration?.movingTime || 0)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {activity.pace?.averageFormatted || 
-                        formatPace(activity.pace?.average || 0)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                      {activity.elevation?.total || 0}m
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    `;
+                    e.target.parentElement.appendChild(placeholder);
+                  }}
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-100 to-blue-50">
+                  <div className="text-center">
+                    <Calendar className="w-12 h-12 mx-auto text-blue-400 mb-2" />
+                    <p className="text-sm text-gray-500">{activity.distance?.toFixed(2)} km</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           
-          <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
-            <div className="flex items-center justify-between text-sm text-gray-600">
-              <span>Tổng: <strong>{myActivities.length}</strong> hoạt động</span>
-              <span>
-                Tổng km: <strong className="text-blue-600">
-                  {myActivities.reduce((sum, a) => sum + (a.distance || 0), 0).toFixed(2)}
-                </strong>
-              </span>
+          <div className="p-4">
+            <div className="flex items-start gap-3">
+              {viewMode === "list" && activity.map?.summaryPolyline && (
+                <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                  {getMapImageUrl(activity.map.summaryPolyline, 200, 200) ? (
+                    <img
+                      src={getMapImageUrl(activity.map.summaryPolyline, 200, 200)}
+                      alt="Route"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-blue-50">
+                      <Activity className="w-8 h-8 text-blue-300" />
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              <div className="flex-1 min-w-0">
+                <h3 className="font-bold text-gray-900 mb-1 truncate">
+                  {activity.name}
+                </h3>
+                <div className="flex flex-wrap gap-2 text-sm mb-2">
+                  <span className="font-bold text-blue-600">
+                    {activity.distance?.toFixed(2)} km
+                  </span>
+                  <span className="text-gray-400">•</span>
+                  <span className="text-gray-600">{activity.date}</span>
+                  <span className="text-gray-400">•</span>
+                  <span className="text-gray-600">{activity.type || "Run"}</span>
+                </div>
+                <div className="flex gap-3 text-xs text-gray-500">
+                  <span>⏱️ {activity.duration?.movingTimeFormatted || formatDuration(activity.duration?.movingTime || 0)}</span>
+                  <span>⚡ {activity.pace?.averageFormatted || formatPace(activity.pace?.average || 0)}</span>
+                  <span>📈 {activity.elevation?.total || 0}m</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      )}
-    </div>
-  );
+      );
+    };
+
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold text-gray-900">Hoạt động của tôi</h1>
+          <div className="flex items-center gap-3">
+            {/* View Toggle */}
+            <div className="inline-flex rounded-lg border border-gray-300 bg-white p-1">
+              <button
+                onClick={() => setViewMode("list")}
+                className={`flex items-center gap-2 px-3 py-2 rounded-md transition-colors ${
+                  viewMode === "list"
+                    ? "bg-blue-600 text-white"
+                    : "text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                <Activity className="w-4 h-4" />
+                <span className="text-sm font-medium">Danh sách</span>
+              </button>
+              <button
+                onClick={() => setViewMode("map")}
+                className={`flex items-center gap-2 px-3 py-2 rounded-md transition-colors ${
+                  viewMode === "map"
+                    ? "bg-blue-600 text-white"
+                    : "text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                <Calendar className="w-4 h-4" />
+                <span className="text-sm font-medium">Bản đồ</span>
+              </button>
+            </div>
+            
+            <button
+              onClick={loadMyActivities}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Làm mới
+            </button>
+          </div>
+        </div>
+
+        {activitiesLoading ? (
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          </div>
+        ) : myActivities.length === 0 ? (
+          <div className="bg-white rounded-xl shadow-md p-12 text-center">
+            <Activity className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <p className="text-gray-500 mb-2">Chưa có hoạt động nào</p>
+            <p className="text-sm text-gray-400 mb-4">
+              Nhấn nút "Đồng bộ Strava" ở trên để tải hoạt động
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className={viewMode === "list" ? "space-y-3" : "grid md:grid-cols-2 lg:grid-cols-3 gap-4"}>
+              {myActivities.map((activity) => (
+                <ActivityCard key={activity.id} activity={activity} />
+              ))}
+            </div>
+            
+            <div className="bg-white rounded-lg shadow-md p-4">
+              <div className="flex items-center justify-between text-sm text-gray-600">
+                <span>Tổng: <strong>{myActivities.length}</strong> hoạt động</span>
+                <span>
+                  Tổng km: <strong className="text-blue-600">
+                    {myActivities.reduce((sum, a) => sum + (a.distance || 0), 0).toFixed(2)}
+                  </strong>
+                </span>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
 
   // Event Detail Page (simplified, just show info)
   const EventDetailPage = () => {
