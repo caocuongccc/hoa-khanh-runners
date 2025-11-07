@@ -14,6 +14,7 @@ const StravaCallback = ({ currentUser }) => {
       if (code && currentUser) {
         try {
           const tokens = await exchangeToken(code);
+          console.log("Strava tokens received:", tokens);
           // Lưu tokens vào Firestore
           await updateDoc(doc(db, "users", currentUser.uid), {
             "stravaIntegration.isConnected": true,
