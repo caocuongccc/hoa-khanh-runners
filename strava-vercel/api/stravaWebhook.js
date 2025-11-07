@@ -4,6 +4,7 @@ import fetch from "node-fetch";
 
 // --- Khởi tạo Firebase Admin (chỉ 1 lần) ---
 if (!admin.apps.length) {
+  console.log("🔎 FIREBASE_SERVICE_ACCOUNT exists?", !!process.env.FIREBASE_SERVICE_ACCOUNT);
   const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
