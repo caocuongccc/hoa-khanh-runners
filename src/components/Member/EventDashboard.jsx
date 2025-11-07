@@ -4,13 +4,13 @@ import {
   Users,
   Activity,
   TrendingUp,
-  Award,
-  Target,
   Calendar,
-  Zap,
   RefreshCw,
+  ChevronRight,
+  X,
+  MapPin,
 } from "lucide-react";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { collection, query, where, getDocs, onSnapshot } from "firebase/firestore";
 import { db } from "../../services/firebase";
 import { syncUserActivities } from "../../services/strava-sync";
 import { validateAndCalculatePoints } from "../../services/member-service";
@@ -28,15 +28,82 @@ const EventDashboard = ({ event, user, onBack }) => {
   const [teamLeaderboard, setTeamLeaderboard] = useState([]);
   const [selectedTeam, setSelectedTeam] = useState(null);
   const [teamMembers, setTeamMembers] = useState([]);
-  const [selectedMember, setSelectedMember] = useState(null);
-  const [memberActivities, setMemberActivities] = useState([]);
+  
+  // ✅ NEW: Tracklog viewer
+  const [showActivities, setShowActivities] = useState(false);
+  const [selectedMemberActivities, setSelectedMemberActivities] = useState([]);
+  const [selectedMemberName, setSelectedMemberName] = useState("");
 
+  // ✅ NEW: Real-time listener
   useEffect(() => {
+    if (!event.id) return;
+
+    // Listen to trackLogs changes
+    const unsubscribeLogs = onSnapshot(
+      collection(db, "trackLogs"),
+      () => {
+        console.log("🔔 TrackLog changed, reloading...");
+        loadDashboardData();
+      }
+    );
+
+    // Listen to participants changes
+    const unsubscribeParticipants = onSnapshot(
+      query(collection(db, "eventParticipants"), where("eventId", "==", event.id)),
+      () => {
+        console.log("🔔 Participant updated, reloading...");
+        loadDashboardData();
+      }
+    );
+
+    return () => {
+      unsubscribeLogs();
+      unsubscribeParticipants();
+    };
+  }, [event.id]);
+
+  // ✅ Auto-sync when entering dashboard
+  useEffect(() => {
+    const autoSync = async () => {
+      // Check last sync time
+      const lastSyncKey = `lastAutoSync_${event.id}_${user.uid}`;
+      const lastSync = localStorage.getItem(lastSyncKey);
+      const now = Date.now();
+      const SYNC_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
+      // Auto sync if:
+      // 1. Never synced before OR
+      // 2. Last sync > 5 minutes ago
+      if (!lastSync || (now - parseInt(lastSync)) > SYNC_INTERVAL) {
+        console.log("🔄 Auto-syncing on dashboard load...");
+        
+        try {
+          const syncResult = await syncUserActivities(
+            user,
+            event.startDate,
+            event.endDate
+          );
+
+          if (syncResult.success && syncResult.total > 0) {
+            console.log(`✅ Auto-sync: ${syncResult.total} activities checked`);
+            
+            // Auto validate & calculate points
+            await validateAndCalculatePoints(event.id, user.uid);
+          }
+
+          // Update last sync time
+          localStorage.setItem(lastSyncKey, now.toString());
+        } catch (error) {
+          console.error("❌ Auto-sync error:", error);
+        }
+      }
+    };
+
+    autoSync();
     loadDashboardData();
   }, [event.id]);
 
   const handleSyncAndValidate = async () => {
-    // Check token expiry first
     const tokenExpiry = user.stravaIntegration?.tokenExpiry;
     const now = Date.now() / 1000;
     
@@ -52,7 +119,6 @@ const EventDashboard = ({ event, user, onBack }) => {
 
     setSyncing(true);
     try {
-      // 1. Sync activities from Strava
       const syncResult = await syncUserActivities(
         user,
         event.startDate,
@@ -65,7 +131,6 @@ const EventDashboard = ({ event, user, onBack }) => {
         return;
       }
 
-      // 2. Validate and calculate points
       const validateResult = await validateAndCalculatePoints(event.id, user.uid);
 
       if (validateResult.success) {
@@ -76,7 +141,6 @@ const EventDashboard = ({ event, user, onBack }) => {
           `⭐ Điểm: ${validateResult.totalPoints}`
         );
         
-        // Reload dashboard
         await loadDashboardData();
       } else {
         alert("❌ Lỗi tính điểm: " + validateResult.error);
@@ -91,7 +155,6 @@ const EventDashboard = ({ event, user, onBack }) => {
   const loadDashboardData = async () => {
     setLoading(true);
     try {
-      // Get all participants for this event
       const participantsQuery = query(
         collection(db, "eventParticipants"),
         where("eventId", "==", event.id)
@@ -102,14 +165,10 @@ const EventDashboard = ({ event, user, onBack }) => {
         ...doc.data()
       }));
 
-      console.log("👥 Participants:", participants.length);
-
-      // Calculate overall stats
       let totalDistance = 0;
       let totalActivities = 0;
       const teamStats = {};
 
-      // Get user details for gender count
       const usersQuery = query(collection(db, "users"));
       const usersSnap = await getDocs(usersQuery);
       const usersMap = {};
@@ -120,15 +179,11 @@ const EventDashboard = ({ event, user, onBack }) => {
       let maleCount = 0;
       let femaleCount = 0;
 
-      // Get activities for each participant WITHIN event dates
       for (const participant of participants) {
-        console.log(`\n👤 Processing user: ${participant.userName} (${participant.userId})`);
-        
         const userGender = usersMap[participant.userId]?.gender;
         if (userGender === "male") maleCount++;
         else if (userGender === "female") femaleCount++;
 
-        // Get activities within event timeframe
         const activitiesQuery = query(
           collection(db, "trackLogs"),
           where("userId", "==", participant.userId),
@@ -137,8 +192,6 @@ const EventDashboard = ({ event, user, onBack }) => {
         );
         const activitiesSnap = await getDocs(activitiesQuery);
         
-        console.log(`📊 Found ${activitiesSnap.size} activities for ${participant.userName}`);
-        
         let userDistance = 0;
         let userActivities = activitiesSnap.size;
 
@@ -146,20 +199,15 @@ const EventDashboard = ({ event, user, onBack }) => {
           const activity = doc.data();
           const dist = activity.distance || 0;
           userDistance += dist;
-          console.log(`  - ${activity.name}: ${dist.toFixed(2)} km on ${activity.date}`);
         });
 
-        // Calculate points: 1km = 1 point (2 decimal places)
         const userPoints = parseFloat(userDistance.toFixed(2));
-
-        console.log(`✅ Total for ${participant.userName}: ${userDistance.toFixed(2)} km = ${userPoints} points`);
 
         totalDistance += userDistance;
         totalActivities += userActivities;
 
         const teamId = participant.teamId;
 
-        // Aggregate by team
         if (!teamStats[teamId]) {
           const team = event.teams?.find(t => t.id === teamId);
           teamStats[teamId] = {
@@ -187,18 +235,15 @@ const EventDashboard = ({ event, user, onBack }) => {
         });
       }
 
-      // Convert to array and sort by points
       const teamsArray = Object.values(teamStats).sort(
         (a, b) => b.totalPoints - a.totalPoints
       );
 
-      // Add rank and round values
       teamsArray.forEach((team, index) => {
         team.rank = index + 1;
         team.totalDistance = parseFloat(team.totalDistance.toFixed(2));
         team.totalPoints = parseFloat(team.totalPoints.toFixed(2));
         
-        // Sort members within team by points
         team.members.sort((a, b) => b.points - a.points);
         team.members.forEach((member, idx) => {
           member.rank = idx + 1;
@@ -222,6 +267,36 @@ const EventDashboard = ({ event, user, onBack }) => {
     setLoading(false);
   };
 
+  // ✅ NEW: Load member activities
+  const handleViewMemberActivities = async (member) => {
+    try {
+      setSelectedMemberName(member.userName);
+      
+      const q = query(
+        collection(db, "trackLogs"),
+        where("userId", "==", member.userId),
+        where("date", ">=", event.startDate),
+        where("date", "<=", event.endDate)
+      );
+      
+      const snap = await getDocs(q);
+      const activities = snap.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })).sort((a, b) => {
+        const dateA = a.startDateTime?.toDate ? a.startDateTime.toDate() : new Date(a.date);
+        const dateB = b.startDateTime?.toDate ? b.startDateTime.toDate() : new Date(b.date);
+        return dateB - dateA;
+      });
+      
+      setSelectedMemberActivities(activities);
+      setShowActivities(true);
+    } catch (error) {
+      console.error("Error loading activities:", error);
+      alert("❌ Lỗi load activities: " + error.message);
+    }
+  };
+
   const handleTeamClick = (team) => {
     setSelectedTeam(team);
     setTeamMembers(team.members);
@@ -234,6 +309,71 @@ const EventDashboard = ({ event, user, onBack }) => {
       </div>
     );
   }
+
+  // ✅ NEW: Activities Modal
+  const ActivitiesModal = () => (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-gray-900">
+            Hoạt động của {selectedMemberName}
+          </h2>
+          <button
+            onClick={() => setShowActivities(false)}
+            className="text-gray-400 hover:text-gray-600"
+          >
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+
+        <div className="p-6">
+          {selectedMemberActivities.length === 0 ? (
+            <div className="text-center py-12">
+              <Activity className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-500">Chưa có hoạt động nào</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {selectedMemberActivities.map((activity) => (
+                <div
+                  key={activity.id}
+                  className="flex items-start gap-4 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  {activity.map?.summaryPolyline && (
+                    <div className="w-20 h-20 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0">
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-100 to-blue-50">
+                        <MapPin className="w-8 h-8 text-blue-400" />
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-gray-900 mb-1 truncate">
+                      {activity.name}
+                    </h3>
+                    <div className="flex flex-wrap gap-2 text-sm mb-2">
+                      <span className="font-bold text-blue-600">
+                        {activity.distance?.toFixed(2)} km
+                      </span>
+                      <span className="text-gray-400">•</span>
+                      <span className="text-gray-600">{activity.date}</span>
+                      <span className="text-gray-400">•</span>
+                      <span className="text-gray-600">{activity.type || "Run"}</span>
+                    </div>
+                    <div className="flex gap-3 text-xs text-gray-500">
+                      <span>⏱️ {activity.duration?.movingTimeFormatted}</span>
+                      <span>⚡ {activity.pace?.averageFormatted}</span>
+                      <span>📈 {activity.elevation?.total || 0}m</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 
   // Individual Leaderboard View
   if (selectedTeam) {
@@ -261,7 +401,6 @@ const EventDashboard = ({ event, user, onBack }) => {
             </div>
           </div>
 
-          {/* Team Stats */}
           <div className="grid md:grid-cols-3 gap-4 mb-6">
             <div className="bg-blue-50 rounded-lg p-4">
               <p className="text-sm text-gray-600 mb-1">Tổng điểm</p>
@@ -283,7 +422,6 @@ const EventDashboard = ({ event, user, onBack }) => {
             </div>
           </div>
 
-          {/* Members Leaderboard */}
           <h3 className="text-lg font-bold text-gray-900 mb-4">
             Bảng xếp hạng cá nhân
           </h3>
@@ -335,10 +473,22 @@ const EventDashboard = ({ event, user, onBack }) => {
                   </div>
                   <div className="text-xs text-gray-500">điểm</div>
                 </div>
+
+                {/* ✅ NEW: View Activities Button */}
+                <button
+                  onClick={() => handleViewMemberActivities(member)}
+                  className="flex items-center gap-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                >
+                  <Activity className="w-4 h-4" />
+                  Xem
+                </button>
               </div>
             ))}
           </div>
         </div>
+
+        {/* ✅ Activities Modal */}
+        {showActivities && <ActivitiesModal />}
       </div>
     );
   }

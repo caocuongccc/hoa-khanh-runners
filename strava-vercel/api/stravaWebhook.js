@@ -1,10 +1,9 @@
-// api/stravaWebhook.js
+// api/stravaWebhook.js - UPDATED với auto validate & calculate
 import admin from "firebase-admin";
 import fetch from "node-fetch";
 
-// --- Khởi tạo Firebase Admin (chỉ 1 lần) ---
+// --- Khởi tạo Firebase Admin ---
 if (!admin.apps.length) {
-  console.log("🔎 FIREBASE_SERVICE_ACCOUNT exists?", !!process.env.FIREBASE_SERVICE_ACCOUNT);
   const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
@@ -25,9 +24,77 @@ const formatPace = (seconds) => {
   return `${mins}:${secs.toString().padStart(2, "0")}/km`;
 };
 
+// ✅ NEW: Validate & Calculate Points
+const validateAndCalculatePoints = async (db, userId) => {
+  try {
+    console.log("🔢 Calculating points for user:", userId);
+
+    // Get all active events user is participating in
+    const participantsSnap = await db
+      .collection("eventParticipants")
+      .where("userId", "==", userId)
+      .where("status", "==", "active")
+      .get();
+
+    if (participantsSnap.empty) {
+      console.log("⚠️ User not in any active events");
+      return;
+    }
+
+    for (const participantDoc of participantsSnap.docs) {
+      const participant = participantDoc.data();
+      const eventId = participant.eventId;
+
+      // Get event
+      const eventDoc = await db.collection("events").doc(eventId).get();
+      if (!eventDoc.exists) continue;
+      
+      const event = eventDoc.data();
+
+      // Get activities in event period
+      const logsSnap = await db
+        .collection("trackLogs")
+        .where("userId", "==", userId)
+        .where("date", ">=", event.startDate)
+        .where("date", "<=", event.endDate)
+        .get();
+
+      const logs = logsSnap.docs.map(d => d.data());
+
+      // Calculate stats
+      let totalDistance = 0;
+      let totalElevation = 0;
+      let validActivities = 0;
+
+      logs.forEach(log => {
+        totalDistance += log.distance || 0;
+        totalElevation += log.elevation?.total || 0;
+        validActivities++; // Tạm thời count tất cả, sau này validate theo rules
+      });
+
+      // Update participant
+      await participantDoc.ref.update({
+        progress: {
+          totalDistance: parseFloat(totalDistance.toFixed(2)),
+          totalActivities: logs.length,
+          totalElevation: totalElevation,
+          validActivities: validActivities,
+          completionRate: validActivities / logs.length || 0,
+          totalPoints: parseFloat(totalDistance.toFixed(2)), // 1km = 1 point
+        },
+        lastUpdated: admin.firestore.Timestamp.now(),
+      });
+
+      console.log(`✅ Updated points for event ${eventId}: ${totalDistance.toFixed(2)} points`);
+    }
+  } catch (error) {
+    console.error("❌ Error calculating points:", error);
+  }
+};
+
 // --- Webhook handler ---
 export default async function handler(req, res) {
-  console.log("📥 Webhook received:", req.method, req.query, req.body);
+  console.log("📥 Webhook received:", req.method);
 
   // ✅ 1) VERIFY ENDPOINT (GET)
   if (req.method === "GET") {
@@ -73,15 +140,20 @@ export default async function handler(req, res) {
         const userDoc = usersSnap.docs[0];
         const userData = userDoc.data();
         const accessToken = userData.stravaIntegration?.accessToken;
+        
         if (!accessToken) {
           console.log("❌ No access token for user");
           return res.status(200).send("No access token");
         }
 
         console.log("🔍 Fetching activity:", activityId);
-        const actRes = await fetch(`https://www.strava.com/api/v3/activities/${activityId}`, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
+        const actRes = await fetch(
+          `https://www.strava.com/api/v3/activities/${activityId}`,
+          {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          }
+        );
+        
         if (!actRes.ok) {
           console.log("❌ Strava fetch failed:", actRes.status);
           return res.status(200).send("Fetch failed");
@@ -96,7 +168,9 @@ export default async function handler(req, res) {
           stravaActivityId: activity.id.toString(),
           name: activity.name,
           date: activity.start_date.split("T")[0],
-          startDateTime: admin.firestore.Timestamp.fromDate(new Date(activity.start_date)),
+          startDateTime: admin.firestore.Timestamp.fromDate(
+            new Date(activity.start_date)
+          ),
           distance: activity.distance / 1000,
           duration: {
             movingTime: activity.moving_time,
@@ -105,7 +179,9 @@ export default async function handler(req, res) {
             elapsedTimeFormatted: formatDuration(activity.elapsed_time),
           },
           pace: {
-            average: Math.round(activity.moving_time / (activity.distance / 1000)),
+            average: Math.round(
+              activity.moving_time / (activity.distance / 1000)
+            ),
             averageFormatted: formatPace(
               Math.round(activity.moving_time / (activity.distance / 1000))
             ),
@@ -144,6 +220,7 @@ export default async function handler(req, res) {
           syncMethod: "webhook",
         };
 
+        // Check if exists
         const existing = await db
           .collection("trackLogs")
           .where("stravaActivityId", "==", activity.id.toString())
@@ -153,6 +230,9 @@ export default async function handler(req, res) {
         if (existing.empty) {
           await db.collection("trackLogs").add(trackLog);
           console.log("✅ Saved new activity:", activity.name);
+
+          // ✅ NEW: Auto calculate points
+          await validateAndCalculatePoints(db, userDoc.id);
         } else {
           console.log("⚠️ Activity already exists");
         }
