@@ -1,8 +1,5 @@
-// FILE: src/App.js
-// App hoàn chỉnh với Authentication, Member Dashboard, Admin Dashboard
-
 import React, { useState, useEffect } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { onAuthChange, isAdmin } from "./services/auth-service";
 import LoginPage from "./components/Auth/LoginPage";
 import MemberDashboard from "./components/Member/MemberDashboard";
@@ -10,15 +7,18 @@ import AdminDashboard from "./components/Admin/AdminDashboard";
 import StravaCallback from "./components/StravaCallback";
 import SeedDataPage from "./components/SeedData";
 import SetupAdmin from "./components/Admin/SetupAdmin";
+import HomePage from "./components/pages/HomePage";
+import FeedPage from "./components/pages/FeedPage";
+import ProfilePage from "./components/pages/ProfilePage";
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Lắng nghe trạng thái đăng nhập
+    // Listen to auth state changes
     const unsubscribe = onAuthChange((user) => {
-      console.log("Auth state changed:", user); // Debug
+      console.log("Auth state changed:", user);
       setCurrentUser(user);
       setLoading(false);
     });
@@ -41,35 +41,53 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Seed Data Page - Không cần login */}
+        {/* Public Routes - No login required */}
+        <Route path="/" element={<HomePage />} />
+        <Route path="/feed" element={<FeedPage currentUser={currentUser} />} />
+        
+        {/* Auth Routes */}
+        <Route path="/login" element={<LoginPage onLoginSuccess={setCurrentUser} />} />
+        <Route path="/strava/callback" element={<StravaCallback currentUser={currentUser} />} />
+        
+        {/* Admin Only Routes */}
         <Route path="/seed-data" element={<SeedDataPage />} />
-        {/* Thêm route (trong <Routes>) */}
         <Route path="/setup-admin" element={<SetupAdmin />} />
-        {/* Strava Callback */}
+
+        {/* Protected Routes - Login required */}
         <Route
-          path="/strava/callback"
-          element={<StravaCallback currentUser={currentUser} />}
+          path="/member/*"
+          element={
+            currentUser ? (
+              isAdmin(currentUser) ? (
+                <Navigate to="/admin" replace />
+              ) : (
+                <MemberDashboard
+                  user={currentUser}
+                  onLogout={() => setCurrentUser(null)}
+                />
+              )
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
         />
 
-        {/* Main Routes */}
         <Route
-          path="/*"
+          path="/admin/*"
           element={
-            !currentUser ? (
-              <LoginPage onLoginSuccess={setCurrentUser} />
-            ) : isAdmin(currentUser) ? (
+            currentUser && isAdmin(currentUser) ? (
               <AdminDashboard
                 user={currentUser}
                 onLogout={() => setCurrentUser(null)}
               />
             ) : (
-              <MemberDashboard
-                user={currentUser}
-                onLogout={() => setCurrentUser(null)}
-              />
+              <Navigate to="/login" replace />
             )
           }
         />
+
+        {/* Fallback */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );
