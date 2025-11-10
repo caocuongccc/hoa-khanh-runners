@@ -14,6 +14,7 @@ import EventsManagement from "./EventsManagement";
 import TeamManagement from "./TeamManagement";
 import UserManagement from "./UserManagement";
 import RulesManagement from "./RulesManagement";
+import TrackLogsManagement from "./TrackLogsManagement";
 
 const AdminDashboard = ({ user, onLogout }) => {
   const [currentPage, setCurrentPage] = useState("overview");
@@ -30,6 +31,7 @@ const AdminDashboard = ({ user, onLogout }) => {
     { id: "teams", label: "Quản lý Teams", icon: Users },
     { id: "users", label: "Quản lý Users", icon: UserCog },
     { id: "rules", label: "Quản lý Rules", icon: ListChecks },
+    { id: "tracklogs", label: "Quản lý TrackLogs", icon: Activity }, // ← THÊM
   ];
 
   // Overview Page
@@ -210,6 +212,8 @@ const AdminDashboard = ({ user, onLogout }) => {
           {currentPage === "teams" && <TeamManagement />}
           {currentPage === "users" && <UserManagement />}
           {currentPage === "rules" && <RulesManagement />}
+          {currentPage === "tracklogs" && <TrackLogsManagement />}
+
         </div>
       </div>
     </div>

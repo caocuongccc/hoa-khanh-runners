@@ -20,7 +20,7 @@ import {
 import { db } from "../../services/firebase";
 
 const ProfilePage = ({ user, onBack }) => {
-  const [activeTab, setActiveTab] = useState("activities"); // "activities" or "events"
+  const [activeTab, setActiveTab] = useState("list"); // "list", "grid", or "events"
   const [myActivities, setMyActivities] = useState([]);
   const [myEvents, setMyEvents] = useState([]);
   const [loading, setLoading] = useState(true);

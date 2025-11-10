@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../services/firebase";
+import { getStravaAuthUrl } from "../../services/strava-service";
+import EventDetailModal from "./EventDetailModal";
 
 const HomePage = () => {
   const navigate = useNavigate();
@@ -21,9 +23,16 @@ const HomePage = () => {
     totalActivities: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [selectedEventId, setSelectedEventId] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
     loadData();
+    // Check if user is logged in
+    const user = localStorage.getItem("currentUser");
+    if (user) {
+      setCurrentUser(JSON.parse(user));
+    }
   }, []);
 
   const loadData = async () => {
@@ -61,8 +70,13 @@ const HomePage = () => {
   };
 
   const handleEventClick = (eventId) => {
-    // Redirect to login if not logged in
-    navigate("/login");
+    // ✅ Always show detail modal first
+    setSelectedEventId(eventId);
+  };
+
+  const handleLogin = () => {
+    const authUrl = getStravaAuthUrl();
+    window.location.href = authUrl;
   };
 
   return (
@@ -97,7 +111,7 @@ const HomePage = () => {
                 Hoạt động
               </button>
               <button
-                onClick={() => navigate("/login")}
+                onClick={handleLogin}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
               >
                 Đăng nhập
@@ -118,7 +132,7 @@ const HomePage = () => {
               Tham gia cộng đồng chạy bộ năng động nhất Đà Nẵng
             </p>
             <button
-              onClick={() => navigate("/login")}
+              onClick={handleLogin}
               className="bg-white text-blue-600 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-blue-50 transition-colors inline-flex items-center gap-2 shadow-lg"
             >
               <Activity className="w-6 h-6" />
@@ -286,7 +300,7 @@ const HomePage = () => {
             Kết nối Strava và tham gia cộng đồng chạy bộ ngay hôm nay
           </p>
           <button
-            onClick={() => navigate("/login")}
+            onClick={handleLogin}
             className="bg-white text-orange-600 px-8 py-4 rounded-lg font-semibold hover:bg-orange-50 transition-colors inline-flex items-center gap-2 text-lg shadow-lg"
           >
             <Activity className="w-6 h-6" />
@@ -305,6 +319,15 @@ const HomePage = () => {
           </div>
         </div>
       </footer>
+
+      {/* Event Detail Modal */}
+      {selectedEventId && (
+        <EventDetailModal
+          eventId={selectedEventId}
+          currentUser={currentUser}
+          onClose={() => setSelectedEventId(null)}
+        />
+      )}
     </div>
   );
 };

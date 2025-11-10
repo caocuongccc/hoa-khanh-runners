@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Search, Calendar, Users, Edit2, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Search, Calendar, Users, Edit2, Trash2, ChevronLeft, ChevronRight, Play, Pause, X, Check } from "lucide-react";
 import { getEvents } from "../../services/firebase-service";
-import { doc, deleteDoc } from "firebase/firestore";
+import { doc, deleteDoc, updateDoc, Timestamp } from "firebase/firestore";
 import { db } from "../../services/firebase";
 import CreateEventModal from "./CreateEventModal";
 
@@ -52,6 +52,30 @@ const EventsManagement = () => {
 
     setFilteredEvents(filtered);
     setCurrentPage(1);
+  };
+
+  // ✅ NEW: Change event status
+  const handleStatusChange = async (eventId, newStatus) => {
+    const statusLabels = {
+      active: "Kích hoạt",
+      pending: "Tạm dừng", 
+      closed: "Đóng"
+    };
+
+    if (!window.confirm(`Bạn có chắc muốn ${statusLabels[newStatus]} sự kiện này?`)) return;
+
+    try {
+      await updateDoc(doc(db, "events", eventId), {
+        status: newStatus,
+        updatedAt: Timestamp.now()
+      });
+      
+      alert(`✅ ${statusLabels[newStatus]} sự kiện thành công!`);
+      loadEvents();
+    } catch (error) {
+      console.error("Error updating status:", error);
+      alert("❌ Lỗi: " + error.message);
+    }
   };
 
   const handleDelete = async (eventId) => {
@@ -124,7 +148,7 @@ const EventsManagement = () => {
               <option value="all">Tất cả trạng thái</option>
               <option value="created">Đã tạo</option>
               <option value="active">Đang diễn ra</option>
-              <option value="pending">Sắp diễn ra</option>
+              <option value="pending">Tạm dừng</option>
               <option value="closed">Đã kết thúc</option>
             </select>
           </div>
@@ -209,7 +233,7 @@ const EventsManagement = () => {
                       {event.status === "active"
                         ? "Đang diễn ra"
                         : event.status === "pending"
-                        ? "Sắp diễn ra"
+                        ? "Tạm dừng"
                         : event.status === "closed"
                         ? "Đã kết thúc"
                         : "Đã tạo"}
@@ -236,6 +260,56 @@ const EventsManagement = () => {
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
+                      {/* ✅ Status Actions */}
+                      {event.status === "created" && (
+                        <button
+                          onClick={() => handleStatusChange(event.id, "active")}
+                          className="p-2 text-green-600 hover:bg-green-50 rounded-lg"
+                          title="Kích hoạt"
+                        >
+                          <Play className="w-4 h-4" />
+                        </button>
+                      )}
+                      
+                      {event.status === "active" && (
+                        <>
+                          <button
+                            onClick={() => handleStatusChange(event.id, "pending")}
+                            className="p-2 text-yellow-600 hover:bg-yellow-50 rounded-lg"
+                            title="Tạm dừng"
+                          >
+                            <Pause className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleStatusChange(event.id, "closed")}
+                            className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg"
+                            title="Đóng sự kiện"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
+
+                      {event.status === "pending" && (
+                        <>
+                          <button
+                            onClick={() => handleStatusChange(event.id, "active")}
+                            className="p-2 text-green-600 hover:bg-green-50 rounded-lg"
+                            title="Tiếp tục"
+                          >
+                            <Play className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleStatusChange(event.id, "closed")}
+                            className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg"
+                            title="Đóng sự kiện"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
+
+                      {/* Edit & Delete */}
                       <button
                         onClick={() => handleEdit(event)}
                         className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
