@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Calendar,
   Users,
@@ -10,9 +11,9 @@ import {
   Activity,
   Home,
   ChevronRight,
-  Award,
-  TrendingUp,
-  Target,
+  MapPin,
+  List,
+  Map as MapIcon,
 } from "lucide-react";
 import { getEvents } from "../../services/firebase-service";
 import { 
@@ -28,6 +29,7 @@ import EventRegistrationModal from "./EventRegistrationModal";
 import EventDashboard from "./EventDashboard";
 
 const MemberDashboard = ({ user, onLogout }) => {
+  const navigate = useNavigate();
   const [currentPage, setCurrentPage] = useState("home");
   const [events, setEvents] = useState([]);
   const [myEvents, setMyEvents] = useState([]);
@@ -38,6 +40,9 @@ const MemberDashboard = ({ user, onLogout }) => {
   const [syncStatus, setSyncStatus] = useState({ syncing: false, message: "" });
   const [tokenExpired, setTokenExpired] = useState(false);
   const [refreshingToken, setRefreshingToken] = useState(false);
+
+  // ✅ NEW: State cho activity view mode
+  const [showMyActivitiesOnly, setShowMyActivitiesOnly] = useState(false);
 
   const stravaConnected = user?.stravaIntegration?.isConnected || false;
   const [showRegisterModal, setShowRegisterModal] = useState(false);
@@ -58,7 +63,6 @@ const MemberDashboard = ({ user, onLogout }) => {
       const refreshToken = user.stravaIntegration.refreshToken;
       const now = Date.now() / 1000;
       
-      // If token expired or will expire in next 24 hours
       if (tokenExpiry && tokenExpiry < now + 86400) {
         console.log('⚠️ Token expiring soon, attempting auto refresh...');
         
@@ -69,14 +73,12 @@ const MemberDashboard = ({ user, onLogout }) => {
         }
       } else {
         console.log('✅ Token still valid');
-        // Token OK, trigger auto sync if needed
         await autoSyncIfNeeded();
       }
     }
   };
 
   const autoSyncIfNeeded = async () => {
-    // Check last sync time from localStorage
     const lastSync = localStorage.getItem(`lastSync_${user.uid}`);
     const now = Date.now();
     const ONE_HOUR = 60 * 60 * 1000;
@@ -90,25 +92,6 @@ const MemberDashboard = ({ user, onLogout }) => {
     }
   };
 
-  // const checkTokenExpiry = async () => {
-  //   if (user?.stravaIntegration?.isConnected) {
-  //     const tokenExpiry = user.stravaIntegration.tokenExpiry;
-  //     const refreshToken = user.stravaIntegration.refreshToken;
-  //     const now = Date.now() / 1000;
-      
-  //     // If token expired or will expire in next 24 hours
-  //     if (tokenExpiry && tokenExpiry < now + 86400) {
-  //       console.log('⚠️ Token expiring soon, attempting auto refresh...');
-        
-  //       if (refreshToken) {
-  //         await handleAutoRefreshToken(refreshToken);
-  //       } else {
-  //         setTokenExpired(true);
-  //       }
-  //     }
-  //   }
-  // };
-
   const handleAutoRefreshToken = async (refreshToken) => {
     setRefreshingToken(true);
     
@@ -116,14 +99,12 @@ const MemberDashboard = ({ user, onLogout }) => {
       const result = await refreshStravaToken(refreshToken);
       
       if (result.success) {
-        // Update user document in Firestore
         await updateDoc(doc(db, "users", user.uid), {
           "stravaIntegration.accessToken": result.data.accessToken,
           "stravaIntegration.refreshToken": result.data.refreshToken,
           "stravaIntegration.tokenExpiry": result.data.expiresAt,
         });
 
-        // Update local user object
         user.stravaIntegration.accessToken = result.data.accessToken;
         user.stravaIntegration.refreshToken = result.data.refreshToken;
         user.stravaIntegration.tokenExpiry = result.data.expiresAt;
@@ -160,7 +141,6 @@ const MemberDashboard = ({ user, onLogout }) => {
       });
       setEvents(activeEvents);
       
-      // Check which events user has registered
       const registeredEvents = [];
       for (const event of activeEvents) {
         const isRegistered = await isUserRegistered(event.id, user.uid);
@@ -186,7 +166,6 @@ const MemberDashboard = ({ user, onLogout }) => {
         ...doc.data()
       }));
       
-      // Sort by date descending
       activities.sort((a, b) => {
         const dateA = a.startDateTime?.toDate ? a.startDateTime.toDate() : new Date(a.date);
         const dateB = b.startDateTime?.toDate ? b.startDateTime.toDate() : new Date(b.date);
@@ -197,7 +176,7 @@ const MemberDashboard = ({ user, onLogout }) => {
       console.log("📊 Loaded activities:", activities.length);
     } catch (error) {
       console.error("Error loading activities:", error);
-      setMyActivities([]); // ← Set empty array on error
+      setMyActivities([]);
     }
     setActivitiesLoading(false);
   };
@@ -220,7 +199,6 @@ const MemberDashboard = ({ user, onLogout }) => {
 
     setSyncStatus({ syncing: true, message: "Đang đồng bộ..." });
 
-    // Sync all activities from all registered events
     let totalSaved = 0;
     let totalUpdated = 0;
     let totalActivities = 0;
@@ -243,7 +221,6 @@ const MemberDashboard = ({ user, onLogout }) => {
     }
 
     if (myEvents.length === 0) {
-      // If no events, sync last 30 days
       const endDate = new Date().toISOString().split("T")[0];
       const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
         .toISOString()
@@ -265,7 +242,6 @@ const MemberDashboard = ({ user, onLogout }) => {
       message: `✅ Đồng bộ thành công! ${totalSaved} mới, ${totalUpdated} cập nhật (${totalActivities} tổng)`,
     });
 
-    // Reload activities
     await loadMyActivities();
 
     setTimeout(() => setSyncStatus({ syncing: false, message: "" }), 5000);
@@ -274,10 +250,10 @@ const MemberDashboard = ({ user, onLogout }) => {
   const handleLogout = async () => {
     await logoutUser();
     onLogout();
+    navigate("/");
   };
 
   const handleRegister = async (event) => {
-    // Check if already registered
     const isRegistered = await isUserRegistered(event.id, user.uid);
     if (isRegistered) {
       alert("⚠️ Bạn đã đăng ký sự kiện này rồi!");
@@ -289,7 +265,12 @@ const MemberDashboard = ({ user, onLogout }) => {
     setShowRegisterModal(true);
   };
 
-  // Helper functions - MUST BE BEFORE USING THEM
+  const handleEventClick = (event) => {
+    console.log("🎯 Event clicked:", event.id);
+    setSelectedEvent(event);
+    setCurrentPage("event-dashboard");
+  };
+
   const formatPace = (seconds) => {
     if (!seconds || seconds === 0) return "0:00/km";
     const mins = Math.floor(seconds / 60);
@@ -336,17 +317,19 @@ const MemberDashboard = ({ user, onLogout }) => {
               <Home className="w-5 h-5" />
               <span className="font-medium">Trang chủ</span>
             </button>
+            
             <button
-              onClick={() => setCurrentPage("my-events")}
+              onClick={() => setCurrentPage("events")}
               className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
-                currentPage === "my-events"
+                currentPage === "events"
                   ? "bg-blue-50 text-blue-600"
                   : "text-gray-600 hover:bg-gray-50"
               }`}
             >
-              <Trophy className="w-5 h-5" />
-              <span className="font-medium">Sự kiện của tôi</span>
+              <Calendar className="w-5 h-5" />
+              <span className="font-medium">Sự kiện</span>
             </button>
+            
             <button
               onClick={() => setCurrentPage("activities")}
               className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
@@ -357,17 +340,6 @@ const MemberDashboard = ({ user, onLogout }) => {
             >
               <Activity className="w-5 h-5" />
               <span className="font-medium">Hoạt động</span>
-            </button>
-            <button
-              onClick={() => setCurrentPage("events")}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
-                currentPage === "events"
-                  ? "bg-blue-50 text-blue-600"
-                  : "text-gray-600 hover:bg-gray-50"
-              }`}
-            >
-              <Calendar className="w-5 h-5" />
-              <span className="font-medium">Khám phá</span>
             </button>
           </nav>
 
@@ -503,7 +475,6 @@ const MemberDashboard = ({ user, onLogout }) => {
         </div>
       </div>
 
-      {/* My Events Section */}
       {myEvents.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-6">
@@ -523,10 +494,7 @@ const MemberDashboard = ({ user, onLogout }) => {
               <div
                 key={event.id}
                 className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-shadow cursor-pointer"
-                onClick={() => {
-                  setSelectedEvent(event);
-                  setCurrentPage("event-dashboard");
-                }}
+                onClick={() => handleEventClick(event)}
               >
                 <div className="relative h-48">
                   <img
@@ -563,7 +531,6 @@ const MemberDashboard = ({ user, onLogout }) => {
         </div>
       )}
 
-      {/* Available Events */}
       <div>
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-gray-900">
@@ -641,10 +608,7 @@ const MemberDashboard = ({ user, onLogout }) => {
                     </div>
                     {isRegistered ? (
                       <button
-                        onClick={() => {
-                          setSelectedEvent(event);
-                          setCurrentPage("event-dashboard");
-                        }}
+                        onClick={() => handleEventClick(event)}
                         className="w-full bg-gray-100 text-gray-700 py-2 rounded-lg hover:bg-gray-200"
                       >
                         Xem dashboard
@@ -694,10 +658,7 @@ const MemberDashboard = ({ user, onLogout }) => {
             <div
               key={event.id}
               className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-shadow cursor-pointer"
-              onClick={() => {
-                setSelectedEvent(event);
-                setCurrentPage("event-dashboard");
-              }}
+              onClick={() => handleEventClick(event)}
             >
               <div className="relative h-48">
                 <img
@@ -738,7 +699,7 @@ const MemberDashboard = ({ user, onLogout }) => {
     </div>
   );
 
-  // Events Page (same as before but with registered check)
+ // Events Page
   const EventsPage = () => (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -803,8 +764,7 @@ const MemberDashboard = ({ user, onLogout }) => {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        setSelectedEvent(event);
-                        setCurrentPage("event-dashboard");
+                        handleEventClick(event);
                       }}
                       className="w-full bg-gray-100 text-gray-700 py-2 rounded-lg hover:bg-gray-200"
                     >
@@ -830,24 +790,30 @@ const MemberDashboard = ({ user, onLogout }) => {
     </div>
   );
 
-  // Activities Page - WITH MAP VIEW (No Mapbox needed)
+  // ✅ Activities Page - CẢI TIẾN với tabs [Tất cả | Của tôi] và [Danh sách | Bản đồ]
   const ActivitiesPage = () => {
     const [viewMode, setViewMode] = useState("list");
 
-    // Generate static map URL from polyline
+    // ✅ Lọc activities theo tab đã chọn
+    const displayedActivities = showMyActivitiesOnly
+      ? myActivities.filter(activity => 
+          myEvents.some(event => {
+            const activityDate = new Date(activity.date);
+            const startDate = new Date(event.startDate);
+            const endDate = new Date(event.endDate);
+            return activityDate >= startDate && activityDate <= endDate;
+          })
+        )
+      : myActivities;
+
     const getMapImageUrl = (polyline, width = 400, height = 300) => {
       if (!polyline) return null;
-      
-      // Option 1: Use Google Maps Static API (FREE 28,000 requests/month)
-      // Cần Google Maps API key, nhưng không cần thẻ
       const GOOGLE_MAPS_KEY = process.env.REACT_APP_GOOGLE_MAPS_KEY;
       
       if (GOOGLE_MAPS_KEY) {
         return `https://maps.googleapis.com/maps/api/staticmap?size=${width}x${height}&path=enc:${polyline}&key=${GOOGLE_MAPS_KEY}`;
       }
       
-      // Option 2: Use OpenStreetMap + Polyline overlay
-      // Hoàn toàn FREE, không cần API key
       return `https://staticmap.openstreetmap.de/staticmap.php?center=auto&zoom=14&size=${width}x${height}&path=enc:${polyline}&markers=0,0,red`;
     };
 
@@ -864,7 +830,6 @@ const MemberDashboard = ({ user, onLogout }) => {
                   alt="Route"
                   className="w-full h-full object-cover"
                   onError={(e) => {
-                    // Fallback: Show simple placeholder
                     e.target.style.display = 'none';
                     const placeholder = document.createElement('div');
                     placeholder.className = 'w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-100 to-blue-50';
@@ -938,10 +903,35 @@ const MemberDashboard = ({ user, onLogout }) => {
 
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-gray-900">Hoạt động của tôi</h1>
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <h1 className="text-3xl font-bold text-gray-900">Hoạt động</h1>
+          
           <div className="flex items-center gap-3">
-            {/* View Toggle */}
+            {/* ✅ Tab: Tất cả / Của tôi */}
+            <div className="inline-flex rounded-lg border border-gray-300 bg-white p-1">
+              <button
+                onClick={() => setShowMyActivitiesOnly(false)}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  !showMyActivitiesOnly
+                    ? "bg-blue-600 text-white"
+                    : "text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                Tất cả
+              </button>
+              <button
+                onClick={() => setShowMyActivitiesOnly(true)}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  showMyActivitiesOnly
+                    ? "bg-blue-600 text-white"
+                    : "text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                Của tôi
+              </button>
+            </div>
+
+            {/* ✅ View Toggle: Danh sách / Bản đồ */}
             <div className="inline-flex rounded-lg border border-gray-300 bg-white p-1">
               <button
                 onClick={() => setViewMode("list")}
@@ -951,7 +941,7 @@ const MemberDashboard = ({ user, onLogout }) => {
                     : "text-gray-600 hover:bg-gray-50"
                 }`}
               >
-                <Activity className="w-4 h-4" />
+                <List className="w-4 h-4" />
                 <span className="text-sm font-medium">Danh sách</span>
               </button>
               <button
@@ -962,7 +952,7 @@ const MemberDashboard = ({ user, onLogout }) => {
                     : "text-gray-600 hover:bg-gray-50"
                 }`}
               >
-                <Calendar className="w-4 h-4" />
+                <MapIcon className="w-4 h-4" />
                 <span className="text-sm font-medium">Bản đồ</span>
               </button>
             </div>
@@ -981,10 +971,14 @@ const MemberDashboard = ({ user, onLogout }) => {
           <div className="text-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
           </div>
-        ) : myActivities.length === 0 ? (
+        ) : displayedActivities.length === 0 ? (
           <div className="bg-white rounded-xl shadow-md p-12 text-center">
             <Activity className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500 mb-2">Chưa có hoạt động nào</p>
+            <p className="text-gray-500 mb-2">
+              {showMyActivitiesOnly 
+                ? "Chưa có hoạt động trong sự kiện đã đăng ký" 
+                : "Chưa có hoạt động nào"}
+            </p>
             <p className="text-sm text-gray-400 mb-4">
               Nhấn nút "Đồng bộ Strava" ở trên để tải hoạt động
             </p>
@@ -992,17 +986,20 @@ const MemberDashboard = ({ user, onLogout }) => {
         ) : (
           <>
             <div className={viewMode === "list" ? "space-y-3" : "grid md:grid-cols-2 lg:grid-cols-3 gap-4"}>
-              {myActivities.map((activity) => (
+              {displayedActivities.map((activity) => (
                 <ActivityCard key={activity.id} activity={activity} />
               ))}
             </div>
             
             <div className="bg-white rounded-lg shadow-md p-4">
               <div className="flex items-center justify-between text-sm text-gray-600">
-                <span>Tổng: <strong>{myActivities.length}</strong> hoạt động</span>
+                <span>
+                  {showMyActivitiesOnly ? "Trong sự kiện: " : "Tổng: "}
+                  <strong>{displayedActivities.length}</strong> hoạt động
+                </span>
                 <span>
                   Tổng km: <strong className="text-blue-600">
-                    {myActivities.reduce((sum, a) => sum + (a.distance || 0), 0).toFixed(2)}
+                    {displayedActivities.reduce((sum, a) => sum + (a.distance || 0), 0).toFixed(2)}
                   </strong>
                 </span>
               </div>
@@ -1013,7 +1010,7 @@ const MemberDashboard = ({ user, onLogout }) => {
     );
   };
 
-  // Event Detail Page (simplified, just show info)
+  // Event Detail Page
   const EventDetailPage = () => {
     if (!selectedEvent) return null;
     const isRegistered = myEvents.some(e => e.id === selectedEvent.id);
@@ -1114,7 +1111,7 @@ const MemberDashboard = ({ user, onLogout }) => {
           <EventDashboard
             event={selectedEvent}
             user={user}
-            onBack={() => setCurrentPage("my-events")}
+            onBack={() => setCurrentPage("events")}
           />
         )}
       </main>

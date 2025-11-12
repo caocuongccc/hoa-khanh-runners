@@ -1,6 +1,7 @@
 // api/stravaWebhook.js - UPDATED với auto validate & calculate
 import admin from "firebase-admin";
 import fetch from "node-fetch";
+import "dotenv/config";
 
 // --- Khởi tạo Firebase Admin ---
 if (!admin.apps.length) {
