@@ -1,5 +1,5 @@
 // FILE: src/components/SetupAdmin.jsx
-import React, { useState } from "react";
+import { useState } from "react";
 import {
   UserPlus,
   Shield,

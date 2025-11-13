@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Calendar,
@@ -11,14 +11,12 @@ import {
   Activity,
   Home,
   ChevronRight,
-  MapPin,
   List,
   Map as MapIcon,
 } from "lucide-react";
 import { getEvents } from "../../services/firebase-service";
 import { 
   isUserRegistered,
-  getLeaderboard,
 } from "../../services/member-service";
 import { getStravaAuthUrl, refreshStravaToken } from "../../services/strava-service";
 import { syncUserActivities } from "../../services/strava-sync";

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { Search, Users, Filter, ChevronLeft, ChevronRight, UserX, AlertCircle } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Search, Users, ChevronLeft, ChevronRight, UserX } from "lucide-react";
 import { getEvents } from "../../services/firebase-service";
 import { doc, updateDoc, getDoc, deleteDoc, query, collection, where, getDocs } from "firebase/firestore";
 import { db } from "../../services/firebase";

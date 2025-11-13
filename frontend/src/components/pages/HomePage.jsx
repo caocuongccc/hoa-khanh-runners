@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Calendar,
@@ -6,8 +6,6 @@ import {
   Trophy,
   Activity,
   TrendingUp,
-  MapPin,
-  Clock,
 } from "lucide-react";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../services/firebase";

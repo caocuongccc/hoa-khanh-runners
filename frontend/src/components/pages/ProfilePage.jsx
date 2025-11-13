@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   Activity,
   Calendar,
@@ -6,9 +6,7 @@ import {
   TrendingUp,
   Trophy,
   Users,
-  Heart,
   Award,
-  Target,
 } from "lucide-react";
 import {
   collection,

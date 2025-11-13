@@ -1,6 +1,6 @@
 // FILE: src/components/Auth/LoginPage.jsx
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { LogIn, UserPlus, TrendingUp } from "lucide-react";
 import { loginUser, registerUser } from "../../services/auth-service";
 

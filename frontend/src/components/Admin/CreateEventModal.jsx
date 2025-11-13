@@ -1,7 +1,7 @@
 // Modal tạo event với chọn rules từ thư viện
 
 import React, { useState, useEffect } from "react";
-import { X, Plus, Check, Upload, Image as ImageIcon } from "lucide-react";
+import { X, Check, Image as ImageIcon } from "lucide-react";
 import {
   createEvent,
   getRules,

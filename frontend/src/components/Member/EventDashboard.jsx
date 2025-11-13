@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   Trophy,
   Users,
@@ -6,7 +6,6 @@ import {
   TrendingUp,
   Calendar,
   RefreshCw,
-  ChevronRight,
   X,
   MapPin,
 } from "lucide-react";

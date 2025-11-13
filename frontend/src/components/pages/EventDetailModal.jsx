@@ -1,14 +1,10 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   X,
   Calendar,
   Users,
   Trophy,
-  MapPin,
-  Award,
-  Target,
-  TrendingUp,
-  Activity,
+  Award
 } from "lucide-react";
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "../../services/firebase";

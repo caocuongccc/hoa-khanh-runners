@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Plus, Search, Edit2, Trash2, Layers } from "lucide-react";
 import { getRules, getRuleGroups } from "../../services/firebase-service";
-import { collection, addDoc, updateDoc, deleteDoc, doc, Timestamp } from "firebase/firestore";
+import { deleteDoc, doc } from "firebase/firestore";
 import { db } from "../../services/firebase";
 
 const RulesManagement = () => {

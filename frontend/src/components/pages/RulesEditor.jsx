@@ -1,5 +1,5 @@
 // src/pages/RulesEditor.jsx
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { db } from "../../services/firebase";
 import {
   collection,
@@ -8,7 +8,6 @@ import {
   deleteDoc,
   doc,
   query,
-  where,
 } from "firebase/firestore";
 import { PlusCircle, Trash2 } from "lucide-react";
 
@@ -57,7 +56,10 @@ export default function RulesEditor({ eventId }) {
           };
           break;
         case "bonus_day":
-          parsedParams = { date: params.date || "", multiplier: Number(params.multiplier || 2) };
+          parsedParams = {
+            date: params.date || "",
+            multiplier: Number(params.multiplier || 2),
+          };
           break;
         default:
           parsedParams = {};

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { Award, TrendingUp } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Award } from "lucide-react";
 import { getLeaderboard } from "../../services/member-service";
 import { onSnapshot, query, collection, where } from "firebase/firestore";
 

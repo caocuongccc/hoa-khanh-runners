@@ -1,5 +1,5 @@
 // src/pages/StravaAuth.jsx
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { doc, setDoc, getDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../../services/firebase';

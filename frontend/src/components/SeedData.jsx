@@ -1,7 +1,7 @@
 // FILE: src/components/Admin/SeedDataPage.jsx
 // Trang để import dữ liệu mẫu vào Firebase
 
-import React, { useState } from "react";
+import { useState } from "react";
 import {
   Database,
   CheckCircle,
@@ -9,7 +9,7 @@ import {
   Loader,
   AlertCircle,
 } from "lucide-react";
-import { collection, doc, writeBatch, Timestamp } from "firebase/firestore";
+import { doc, writeBatch, Timestamp } from "firebase/firestore";
 import { db } from "../services/firebase";
 
 const SeedDataPage = () => {

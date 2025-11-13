@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Map, List, Activity as ActivityIcon, MapPin } from "lucide-react";
 
 const ActivitiesMapView = ({ activities, onActivityClick }) => {
