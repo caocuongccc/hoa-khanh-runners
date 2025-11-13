@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { onAuthChange, isAdmin } from "./services/auth-service";
 import LoginPage from "./components/Auth/LoginPage";
@@ -9,7 +9,6 @@ import SeedDataPage from "./components/SeedData";
 import SetupAdmin from "./components/Admin/SetupAdmin";
 import HomePage from "./components/pages/HomePage";
 import FeedPage from "./components/pages/FeedPage";
-import ProfilePage from "./components/pages/ProfilePage";
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);

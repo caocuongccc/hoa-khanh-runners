@@ -53,6 +53,7 @@ const MemberDashboard = ({ user, onLogout }) => {
       await loadMyActivities();
     };
     init();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const checkTokenExpiry = async () => {
