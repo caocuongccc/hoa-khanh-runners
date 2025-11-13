@@ -1,7 +1,7 @@
 // src/services/strava-service.js - FIXED AUTH URL
 const STRAVA_CLIENT_ID = process.env.REACT_APP_STRAVA_CLIENT_ID;
 const STRAVA_CLIENT_SECRET = process.env.REACT_APP_STRAVA_CLIENT_SECRET;
-const REDIRECT_URI = process.env.REACT_APP_STRAVA_REDIRECT_URI || 'http://localhost:3000/strava/callback';
+const REDIRECT_URI = process.env.REACT_APP_STRAVA_REDIRECT_URI;
 
 /**
  * Generate Strava OAuth URL with proper encoding
