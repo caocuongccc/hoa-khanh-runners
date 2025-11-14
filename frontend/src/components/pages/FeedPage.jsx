@@ -19,15 +19,39 @@ import {
   getDoc,
 } from "firebase/firestore";
 import { db } from "../../services/firebase";
+import SharedHeader from "../Shared/SharedHeader";
 
-const FeedPage = ({ currentUser }) => {
+const FeedPage = () => {
   const navigate = useNavigate();
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
     loadRecentActivities();
+    checkUserLogin();
+
+    const handleUserLogin = () => {
+      checkUserLogin();
+    };
+    window.addEventListener('userLoggedIn', handleUserLogin);
+
+    return () => {
+      window.removeEventListener('userLoggedIn', handleUserLogin);
+    };
   }, []);
+
+  const checkUserLogin = () => {
+    const storedUser = localStorage.getItem("currentUser");
+    if (storedUser) {
+      try {
+        const user = JSON.parse(storedUser);
+        setCurrentUser(user);
+      } catch (error) {
+        console.error("Error parsing user:", error);
+      }
+    }
+  };
 
   const loadRecentActivities = async () => {
     setLoading(true);
@@ -84,56 +108,14 @@ const FeedPage = ({ currentUser }) => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex items-center justify-between h-16">
-            <div
-              className="flex items-center gap-3 cursor-pointer"
-              onClick={() => navigate("/")}
-            >
-              <div className="bg-gradient-to-r from-blue-600 to-blue-400 p-2 rounded-lg">
-                <Activity className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">
-                  Hòa Khánh Runners
-                </h1>
-              </div>
-            </div>
-
-            <nav className="flex items-center gap-6">
-              <button
-                onClick={() => navigate("/")}
-                className="text-gray-600 hover:text-gray-900 font-medium"
-              >
-                Trang chủ
-              </button>
-              <button
-                onClick={() => navigate("/feed")}
-                className="text-blue-600 font-semibold"
-              >
-                Hoạt động
-              </button>
-              {currentUser ? (
-                <button
-                  onClick={() => navigate("/member")}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-                >
-                  Dashboard
-                </button>
-              ) : (
-                <button
-                  onClick={() => navigate("/login")}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-                >
-                  Đăng nhập
-                </button>
-              )}
-            </nav>
-          </div>
-        </div>
-      </header>
+      {/* ✅ Use SharedHeader */}
+      <SharedHeader 
+        currentUser={currentUser}
+        onLogout={() => {
+          setCurrentUser(null);
+          navigate("/");
+        }}
+      />
 
       {/* Main Content */}
       <div className="max-w-4xl mx-auto px-4 py-8">

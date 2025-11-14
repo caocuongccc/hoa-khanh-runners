@@ -133,17 +133,18 @@ const StravaCallback = () => {
     // Trigger a custom event to notify App.js
     window.dispatchEvent(new Event('userLoggedIn'));
     
-    // Check if user intended to join an event
+    // ✅ Check if user intended to join an event
     const intendedEventId = localStorage.getItem("intendedEventId");
     if (intendedEventId) {
       localStorage.removeItem("intendedEventId");
       navigate(`/member/event/${intendedEventId}`);
     } else {
-      navigate("/member");
+      // ✅ Redirect to /feed instead of /member
+      navigate("/feed");
     }
     
     // Force reload to trigger auth state change
-    window.location.href = "/member";
+    window.location.href = intendedEventId ? `/member/event/${intendedEventId}` : "/feed";
   };
 
   const handleCancel = () => {

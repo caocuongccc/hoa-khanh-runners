@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import {
   Calendar,
   Users,
@@ -7,9 +7,7 @@ import {
   RefreshCw,
   Link2,
   Check,
-  LogOut,
   Activity,
-  Home,
   ChevronRight,
   List,
   Map as MapIcon,
@@ -18,15 +16,16 @@ import { getEvents } from "../../services/firebase-service";
 import { isUserRegistered } from "../../services/member-service";
 import { getStravaAuthUrl, refreshStravaToken } from "../../services/strava-service";
 import { syncUserActivities } from "../../services/strava-sync";
-import { logoutUser } from "../../services/auth-service";
 import { collection, query, where, getDocs, doc, updateDoc } from "firebase/firestore";
 import { db } from "../../services/firebase";
+import SharedHeader from "../Shared/SharedHeader";
 import EventRegistrationModal from "./EventRegistrationModal";
 import EventDashboard from "./EventDashboard";
 
 const MemberDashboard = ({ user, onLogout }) => {
   const navigate = useNavigate();
-  const [currentPage, setCurrentPage] = useState("home");
+  const location = useLocation();
+  
   const [events, setEvents] = useState([]);
   const [myEvents, setMyEvents] = useState([]);
   const [myActivities, setMyActivities] = useState([]);
@@ -36,7 +35,10 @@ const MemberDashboard = ({ user, onLogout }) => {
   const [syncStatus, setSyncStatus] = useState({ syncing: false, message: "" });
   const [tokenExpired, setTokenExpired] = useState(false);
   const [refreshingToken, setRefreshingToken] = useState(false);
-  const [showMyActivitiesOnly, setShowMyActivitiesOnly] = useState(false);
+
+  // ✅ NEW: State for activities page
+  const [showEventsList, setShowEventsList] = useState(false); // "Sự kiện của tôi" mode
+  const [viewMode, setViewMode] = useState("list"); // "list" or "map"
 
   const stravaConnected = user?.stravaIntegration?.isConnected || false;
   const [showRegisterModal, setShowRegisterModal] = useState(false);
@@ -242,12 +244,6 @@ const MemberDashboard = ({ user, onLogout }) => {
     setTimeout(() => setSyncStatus({ syncing: false, message: "" }), 5000);
   };
 
-  const handleLogout = async () => {
-    await logoutUser();
-    onLogout();
-    navigate("/");
-  };
-
   const handleRegister = async (event) => {
     const isRegistered = await isUserRegistered(event.id, user.uid);
     if (isRegistered) {
@@ -263,7 +259,7 @@ const MemberDashboard = ({ user, onLogout }) => {
   const handleEventClick = (event) => {
     console.log("🎯 Event clicked:", event.id);
     setSelectedEvent(event);
-    setCurrentPage("event-dashboard");
+    navigate("/member/event-dashboard");
   };
 
   const formatPace = (seconds) => {
@@ -279,82 +275,6 @@ const MemberDashboard = ({ user, onLogout }) => {
     const mins = Math.floor((seconds % 3600) / 60);
     return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
   };
-
-  // Header Component
-  const Header = () => (
-    <header className="bg-white shadow-sm sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4">
-        <div className="flex items-center justify-between h-16">
-          <div
-            className="flex items-center gap-3 cursor-pointer"
-            onClick={() => setCurrentPage("home")}
-          >
-            <div className="bg-gradient-to-r from-blue-600 to-blue-400 p-2 rounded-lg">
-              <Activity className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">
-                Hòa Khánh Runners
-              </h1>
-              <p className="text-xs text-gray-500">Member Dashboard</p>
-            </div>
-          </div>
-
-          <nav className="hidden md:flex items-center gap-6">
-            <button
-              onClick={() => setCurrentPage("home")}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
-                currentPage === "home"
-                  ? "bg-blue-50 text-blue-600"
-                  : "text-gray-600 hover:bg-gray-50"
-              }`}
-            >
-              <Home className="w-5 h-5" />
-              <span className="font-medium">Trang chủ</span>
-            </button>
-            
-            <button
-              onClick={() => setCurrentPage("events")}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
-                currentPage === "events"
-                  ? "bg-blue-50 text-blue-600"
-                  : "text-gray-600 hover:bg-gray-50"
-              }`}
-            >
-              <Calendar className="w-5 h-5" />
-              <span className="font-medium">Sự kiện</span>
-            </button>
-            
-            <button
-              onClick={() => setCurrentPage("activities")}
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
-                currentPage === "activities"
-                  ? "bg-blue-50 text-blue-600"
-                  : "text-gray-600 hover:bg-gray-50"
-              }`}
-            >
-              <Activity className="w-5 h-5" />
-              <span className="font-medium">Hoạt động</span>
-            </button>
-          </nav>
-
-          <div className="flex items-center gap-3">
-            <div className="text-right hidden md:block">
-              <p className="text-sm font-medium text-gray-700">{user.name}</p>
-              <p className="text-xs text-gray-500">{user.email}</p>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-            >
-              <LogOut className="w-5 h-5" />
-              <span className="hidden md:inline">Đăng xuất</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    </header>
-  );
 
   // Strava Connection Card
   const StravaConnectCard = () => (
@@ -446,7 +366,7 @@ const MemberDashboard = ({ user, onLogout }) => {
     </div>
   );
 
-  // Home Page
+  // ✅ Home Page - BỎ "Sự kiện của tôi", CHỈ SHOW 3 SỰ KIỆN MỚI NHẤT
   const HomePage = () => (
     <div className="space-y-8">
       <div className="bg-gradient-to-r from-green-600 to-green-400 rounded-2xl p-8 md:p-12 text-white">
@@ -470,72 +390,14 @@ const MemberDashboard = ({ user, onLogout }) => {
         </div>
       </div>
 
-      {myEvents.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">
-              Sự kiện của tôi
-            </h2>
-            <button
-              onClick={() => {
-                setShowMyActivitiesOnly(true);
-                setCurrentPage("activities");
-              }}
-              className="text-blue-600 hover:text-blue-700 flex items-center gap-1 font-medium"
-            >
-              Xem tất cả
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="grid md:grid-cols-3 gap-6">
-            {myEvents.slice(0, 3).map((event) => (
-              <div
-                key={event.id}
-                className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-shadow cursor-pointer"
-                onClick={() => handleEventClick(event)}
-              >
-                <div className="relative h-48">
-                  <img
-                    src={
-                      event.media?.coverImage ||
-                      "https://images.unsplash.com/photo-1552674605-db6ffd4facb5?w=800"
-                    }
-                    alt={event.name}
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute top-3 right-3">
-                    <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-500 text-white">
-                      Đã tham gia
-                    </span>
-                  </div>
-                </div>
-                <div className="p-4">
-                  <h3 className="font-bold text-gray-900 mb-2 line-clamp-2">
-                    {event.name}
-                  </h3>
-                  <div className="flex items-center gap-4 text-sm text-gray-600 mb-3">
-                    <span className="flex items-center gap-1">
-                      <Calendar className="w-4 h-4" />
-                      {event.startDate}
-                    </span>
-                  </div>
-                  <button className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">
-                    Xem dashboard
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
+      {/* ✅ CHỈ SHOW 3 SỰ KIỆN MỚI NHẤT/HOT NHẤT */}
       <div>
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-gray-900">
-            Sự kiện có sẵn
+            Sự kiện nổi bật
           </h2>
           <button
-            onClick={() => setCurrentPage("events")}
+            onClick={() => navigate("/member/events")}
             className="text-blue-600 hover:text-blue-700 flex items-center gap-1 font-medium"
           >
             Xem tất cả
@@ -565,7 +427,7 @@ const MemberDashboard = ({ user, onLogout }) => {
                     className="relative h-48 cursor-pointer"
                     onClick={() => {
                       setSelectedEvent(event);
-                      setCurrentPage("event-detail");
+                      navigate("/member/event-detail");
                     }}
                   >
                     <img
@@ -632,7 +494,7 @@ const MemberDashboard = ({ user, onLogout }) => {
     </div>
   );
 
-  // Events Page
+  // ✅ Events Page - Grid 3 cột, sort giảm dần theo thời gian
   const EventsPage = () => (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -663,7 +525,7 @@ const MemberDashboard = ({ user, onLogout }) => {
                   className="relative h-48 cursor-pointer"
                   onClick={() => {
                     setSelectedEvent(event);
-                    setCurrentPage("event-detail");
+                    navigate("/member/event-detail");
                   }}
                 >
                   <img
@@ -723,21 +585,8 @@ const MemberDashboard = ({ user, onLogout }) => {
     </div>
   );
 
-  // ✅ Activities Page - Updated với heading động
+  // ✅ Activities Page - MỚI REDESIGN
   const ActivitiesPage = () => {
-    const [viewMode, setViewMode] = useState("list");
-
-    const displayedActivities = showMyActivitiesOnly
-      ? myActivities.filter(activity => 
-          myEvents.some(event => {
-            const activityDate = new Date(activity.date);
-            const startDate = new Date(event.startDate);
-            const endDate = new Date(event.endDate);
-            return activityDate >= startDate && activityDate <= endDate;
-          })
-        )
-      : myActivities;
-
     const getMapImageUrl = (polyline, width = 400, height = 300) => {
       if (!polyline) return null;
       const GOOGLE_MAPS_KEY = process.env.REACT_APP_GOOGLE_MAPS_KEY;
@@ -833,64 +682,100 @@ const MemberDashboard = ({ user, onLogout }) => {
       );
     };
 
+    // ✅ Event Card for "Sự kiện của tôi" mode
+    const EventCard = ({ event }) => (
+      <div
+        className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-shadow cursor-pointer"
+        onClick={() => handleEventClick(event)}
+      >
+        <div className="relative h-48">
+          <img
+            src={
+              event.media?.coverImage ||
+              "https://images.unsplash.com/photo-1552674605-db6ffd4facb5?w=800"
+            }
+            alt={event.name}
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute top-3 right-3">
+            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-500 text-white">
+              Đã tham gia
+            </span>
+          </div>
+        </div>
+        <div className="p-5">
+          <h3 className="font-bold text-gray-900 mb-3 line-clamp-2">
+            {event.name}
+          </h3>
+          <div className="space-y-2 mb-4">
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <Calendar className="w-4 h-4" />
+              <span>
+                {event.startDate} - {event.endDate}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <Users className="w-4 h-4" />
+              <span>
+                {event.registration?.currentParticipants || 0} người tham gia
+              </span>
+            </div>
+          </div>
+          <button className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">
+            Xem dashboard
+          </button>
+        </div>
+      </div>
+    );
+
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-4">
-          {/* ✅ HEADING ĐỘNG: Hiển thị theo tab được chọn */}
+          {/* ✅ HEADING ĐỘNG */}
           <h1 className="text-3xl font-bold text-gray-900">
-            {showMyActivitiesOnly ? "Sự kiện của tôi" : "Hoạt động"}
+            {showEventsList ? "Sự kiện của tôi" : "Hoạt động"}
           </h1>
           
           <div className="flex items-center gap-3">
-            {/* ✅ Tab: Tất cả / Của tôi */}
-            <div className="inline-flex rounded-lg border border-gray-300 bg-white p-1">
-              <button
-                onClick={() => setShowMyActivitiesOnly(false)}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  !showMyActivitiesOnly
-                    ? "bg-blue-600 text-white"
-                    : "text-gray-600 hover:bg-gray-50"
-                }`}
-              >
-                Tất cả
-              </button>
-              <button
-                onClick={() => setShowMyActivitiesOnly(true)}
-                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  showMyActivitiesOnly
-                    ? "bg-blue-600 text-white"
-                    : "text-gray-600 hover:bg-gray-50"
-                }`}
-              >
-                Của tôi
-              </button>
-            </div>
+            {/* ✅ Button: Sự kiện của tôi */}
+            <button
+              onClick={() => setShowEventsList(!showEventsList)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                showEventsList
+                  ? "bg-blue-600 text-white"
+                  : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
+              }`}
+            >
+              Sự kiện của tôi
+            </button>
 
-            {/* ✅ View Toggle: Danh sách / Bản đồ */}
-            <div className="inline-flex rounded-lg border border-gray-300 bg-white p-1">
-              <button
-                onClick={() => setViewMode("list")}
-                className={`flex items-center gap-2 px-3 py-2 rounded-md transition-colors ${
-                  viewMode === "list"
-                    ? "bg-blue-600 text-white"
-                    : "text-gray-600 hover:bg-gray-50"
-                }`}
-              >
-                <List className="w-4 h-4" />
-                <span className="text-sm font-medium">Danh sách</span>
-              </button>
-              <button
-                onClick={() => setViewMode("map")}
-                className={`flex items-center gap-2 px-3 py-2 rounded-md transition-colors ${
-                  viewMode === "map"
-                    ? "bg-blue-600 text-white"
-                    : "text-gray-600 hover:bg-gray-50"
-                }`}
-              >
-                <MapIcon className="w-4 h-4" />
-                <span className="text-sm font-medium">Bản đồ</span>
-              </button>
-            </div>
+            {/* ✅ View Toggle: Danh sách / Bản đồ - CHỈ HIỆN KHI KHÔNG Ở MODE "SỰ KIỆN" */}
+            {!showEventsList && (
+              <div className="inline-flex rounded-lg border border-gray-300 bg-white p-1">
+                <button
+                  onClick={() => setViewMode("list")}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md transition-colors ${
+                    viewMode === "list"
+                      ? "bg-blue-600 text-white"
+                      : "text-gray-600 hover:bg-gray-50"
+                  }`}
+                >
+                  <List className="w-4 h-4" />
+                  <span className="text-sm font-medium">Danh sách</span>
+                </button>
+                <button
+                  onClick={() => setViewMode("map")}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md transition-colors ${
+                    viewMode === "map"
+                      ? "bg-blue-600 text-white"
+                      : "text-gray-600 hover:bg-gray-50"
+                  }`}
+                >
+                  <MapIcon className="w-4 h-4" />
+                  <span className="text-sm font-medium">Bản đồ</span>
+                </button>
+              </div>
+            )}
             
             <button
               onClick={loadMyActivities}
@@ -902,44 +787,65 @@ const MemberDashboard = ({ user, onLogout }) => {
           </div>
         </div>
 
-        {activitiesLoading ? (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          </div>
-        ) : displayedActivities.length === 0 ? (
-          <div className="bg-white rounded-xl shadow-md p-12 text-center">
-            <Activity className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500 mb-2">
-              {showMyActivitiesOnly 
-                ? "Chưa có hoạt động trong sự kiện đã đăng ký" 
-                : "Chưa có hoạt động nào"}
-            </p>
-            <p className="text-sm text-gray-400 mb-4">
-              Nhấn nút "Đồng bộ Strava" ở trên để tải hoạt động
-            </p>
-          </div>
-        ) : (
-          <>
-            <div className={viewMode === "list" ? "space-y-3" : "grid md:grid-cols-2 lg:grid-cols-3 gap-4"}>
-              {displayedActivities.map((activity) => (
-                <ActivityCard key={activity.id} activity={activity} />
+        {/* ✅ CONTENT: Show Events hoặc Activities */}
+        {showEventsList ? (
+          // ✅ MODE: Sự kiện của tôi - Show grid events
+          myEvents.length === 0 ? (
+            <div className="bg-white rounded-xl shadow-md p-12 text-center">
+              <Trophy className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-500 mb-4">
+                Bạn chưa tham gia sự kiện nào
+              </p>
+              <button
+                onClick={() => navigate("/member/events")}
+                className="text-blue-600 hover:text-blue-700 font-medium"
+              >
+                Khám phá sự kiện →
+              </button>
+            </div>
+          ) : (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {myEvents.map((event) => (
+                <EventCard key={event.id} event={event} />
               ))}
             </div>
-            
-            <div className="bg-white rounded-lg shadow-md p-4">
-              <div className="flex items-center justify-between text-sm text-gray-600">
-                <span>
-                  {showMyActivitiesOnly ? "Trong sự kiện: " : "Tổng: "}
-                  <strong>{displayedActivities.length}</strong> hoạt động
-                </span>
-                <span>
-                  Tổng km: <strong className="text-blue-600">
-                    {displayedActivities.reduce((sum, a) => sum + (a.distance || 0), 0).toFixed(2)}
-                  </strong>
-                </span>
-              </div>
+          )
+        ) : (
+          // ✅ MODE: Hoạt động - Show activities
+          activitiesLoading ? (
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
             </div>
-          </>
+          ) : myActivities.length === 0 ? (
+            <div className="bg-white rounded-xl shadow-md p-12 text-center">
+              <Activity className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-500 mb-2">Chưa có hoạt động nào</p>
+              <p className="text-sm text-gray-400 mb-4">
+                Nhấn nút "Đồng bộ Strava" ở trên để tải hoạt động
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className={viewMode === "list" ? "space-y-3" : "grid md:grid-cols-2 lg:grid-cols-3 gap-4"}>
+                {myActivities.map((activity) => (
+                  <ActivityCard key={activity.id} activity={activity} />
+                ))}
+              </div>
+              
+              <div className="bg-white rounded-lg shadow-md p-4">
+                <div className="flex items-center justify-between text-sm text-gray-600">
+                  <span>
+                    Tổng: <strong>{myActivities.length}</strong> hoạt động
+                  </span>
+                  <span>
+                    Tổng km: <strong className="text-blue-600">
+                      {myActivities.reduce((sum, a) => sum + (a.distance || 0), 0).toFixed(2)}
+                    </strong>
+                  </span>
+                </div>
+              </div>
+            </>
+          )
         )}
       </div>
     );
@@ -953,7 +859,7 @@ const MemberDashboard = ({ user, onLogout }) => {
     return (
       <div className="space-y-6">
         <button
-          onClick={() => setCurrentPage("events")}
+          onClick={() => navigate("/member/events")}
           className="text-blue-600 hover:text-blue-700 flex items-center gap-1"
         >
           ← Quay lại
@@ -1011,7 +917,7 @@ const MemberDashboard = ({ user, onLogout }) => {
               {isRegistered ? (
                 <button
                   onClick={() => {
-                    setCurrentPage("event-dashboard");
+                    navigate("/member/event-dashboard");
                   }}
                   className="w-full bg-white text-blue-600 py-3 rounded-lg hover:bg-blue-50 font-semibold transition-colors"
                 >
@@ -1034,20 +940,33 @@ const MemberDashboard = ({ user, onLogout }) => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header />
+      {/* ✅ Use SharedHeader */}
+      <SharedHeader currentUser={user} onLogout={onLogout} />
+      
       <main className="max-w-7xl mx-auto px-4 py-8">
         <StravaConnectCard />
-        {currentPage === "home" && <HomePage />}
-        {currentPage === "activities" && <ActivitiesPage />}
-        {currentPage === "events" && <EventsPage />}
-        {currentPage === "event-detail" && <EventDetailPage />}
-        {currentPage === "event-dashboard" && selectedEvent && (
-          <EventDashboard
-            event={selectedEvent}
-            user={user}
-            onBack={() => setCurrentPage("events")}
+        
+        {/* ✅ Use Routes for nested navigation */}
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/events" element={<EventsPage />} />
+          <Route path="/activities" element={<ActivitiesPage />} />
+          <Route path="/event-detail" element={<EventDetailPage />} />
+          <Route 
+            path="/event-dashboard" 
+            element={
+              selectedEvent ? (
+                <EventDashboard
+                  event={selectedEvent}
+                  user={user}
+                  onBack={() => navigate("/member/events")}
+                />
+              ) : (
+                <div>Event not found</div>
+              )
+            } 
           />
-        )}
+        </Routes>
       </main>
 
       {showRegisterModal && registeringEvent && (

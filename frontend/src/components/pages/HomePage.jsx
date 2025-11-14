@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../../services/firebase";
+import SharedHeader from "../Shared/SharedHeader";
 import { getStravaAuthUrl } from "../../services/strava-service";
 import EventDetailModal from "./EventDetailModal";
 
@@ -28,7 +29,6 @@ const HomePage = () => {
     loadData();
     checkUserLogin();
 
-    // ✅ Listen for login events
     const handleUserLogin = () => {
       checkUserLogin();
     };
@@ -125,16 +125,29 @@ const HomePage = () => {
               >
                 Hoạt động
               </button>
-              {/* ✅ BỎ NÚT ĐĂNG NHẬP CŨ - CHỈ CÒN STRAVA */}
-              <button
-                onClick={handleStravaLogin}
-                className="px-6 py-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg hover:from-orange-600 hover:to-orange-700 font-medium shadow-md flex items-center gap-2 transition-all"
-              >
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169" />
-                </svg>
-                Đăng nhập bằng Strava
-              </button>
+              
+              {/* ✅ Show different buttons based on login state */}
+              {currentUser ? (
+                <button
+                  onClick={() => navigate("/member")}
+                  className="px-6 py-2 bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-lg hover:from-blue-700 hover:to-blue-600 font-medium shadow-md flex items-center gap-2 transition-all"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  Dashboard
+                </button>
+              ) : (
+                <button
+                  onClick={handleStravaLogin}
+                  className="px-6 py-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg hover:from-orange-600 hover:to-orange-700 font-medium shadow-md flex items-center gap-2 transition-all"
+                >
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169" />
+                  </svg>
+                  Đăng nhập bằng Strava
+                </button>
+              )}
             </nav>
           </div>
         </div>
@@ -332,7 +345,7 @@ const HomePage = () => {
         <div className="max-w-7xl mx-auto px-4 py-8">
           <div className="text-center">
             <p className="text-gray-400">
-              © 2025 Hòa Khánh Runners. Made with ❤️ in Da Nang
+              © 2025 Hòa Khánh Runners. Chạy để sống tốt hơn.
             </p>
           </div>
         </div>
