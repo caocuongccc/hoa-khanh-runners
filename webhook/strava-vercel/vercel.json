@@ -7,4 +7,4 @@
     { "src": "/$", "dest": "/api/stravaWebhook.js" },
     { "src": "/api/(.*)", "dest": "/api/$1.js" }
   ]
-}
+} 
