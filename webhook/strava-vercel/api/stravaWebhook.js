@@ -249,10 +249,10 @@ export default async function handler(req, res) {
             let emoji = "";
             let timeOfDay = "";
 
-            if (hours >= 0 && hours < 11) {
+            if (hours >= 4 && hours < 11) {
               emoji = "🌅"; // sáng
               timeOfDay = "sáng";
-            } else if (hours >= 11 && hours < 18) {
+            } else if (hours >= 11 && hours < 17) {
               emoji = "🌤️"; // chiều
               timeOfDay = "chiều";
             } else {
