@@ -7,7 +7,7 @@ import {
   Activity,
   TrendingUp,
 } from "lucide-react";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import { db } from "../../services/firebase";
 import { getStravaAuthUrl } from "../../services/strava-service";
 import EventDetailModal from "./EventDetailModal";
@@ -26,12 +26,30 @@ const HomePage = () => {
 
   useEffect(() => {
     loadData();
-    // Check if user is logged in
-    const user = localStorage.getItem("currentUser");
-    if (user) {
-      setCurrentUser(JSON.parse(user));
-    }
+    checkUserLogin();
+
+    // ✅ Listen for login events
+    const handleUserLogin = () => {
+      checkUserLogin();
+    };
+    window.addEventListener('userLoggedIn', handleUserLogin);
+
+    return () => {
+      window.removeEventListener('userLoggedIn', handleUserLogin);
+    };
   }, []);
+
+  const checkUserLogin = () => {
+    const storedUser = localStorage.getItem("currentUser");
+    if (storedUser) {
+      try {
+        const user = JSON.parse(storedUser);
+        setCurrentUser(user);
+      } catch (error) {
+        console.error("Error parsing user:", error);
+      }
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -68,11 +86,10 @@ const HomePage = () => {
   };
 
   const handleEventClick = (eventId) => {
-    // ✅ Always show detail modal first
     setSelectedEventId(eventId);
   };
 
-  const handleLogin = () => {
+  const handleStravaLogin = () => {
     const authUrl = getStravaAuthUrl();
     window.location.href = authUrl;
   };
@@ -108,11 +125,15 @@ const HomePage = () => {
               >
                 Hoạt động
               </button>
+              {/* ✅ BỎ NÚT ĐĂNG NHẬP CŨ - CHỈ CÒN STRAVA */}
               <button
-                onClick={handleLogin}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+                onClick={handleStravaLogin}
+                className="px-6 py-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg hover:from-orange-600 hover:to-orange-700 font-medium shadow-md flex items-center gap-2 transition-all"
               >
-                Đăng nhập
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169" />
+                </svg>
+                Đăng nhập bằng Strava
               </button>
             </nav>
           </div>
@@ -130,10 +151,12 @@ const HomePage = () => {
               Tham gia cộng đồng chạy bộ năng động nhất Đà Nẵng
             </p>
             <button
-              onClick={handleLogin}
+              onClick={handleStravaLogin}
               className="bg-white text-blue-600 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-blue-50 transition-colors inline-flex items-center gap-2 shadow-lg"
             >
-              <Activity className="w-6 h-6" />
+              <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169" />
+              </svg>
               Kết nối Strava & Tham gia ngay
             </button>
           </div>
@@ -226,7 +249,6 @@ const HomePage = () => {
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
                   
-                  {/* Status Badge */}
                   <div className="absolute top-4 right-4">
                     <span
                       className={`px-4 py-2 rounded-full text-sm font-semibold ${
@@ -241,7 +263,6 @@ const HomePage = () => {
                     </span>
                   </div>
 
-                  {/* Event Title */}
                   <div className="absolute bottom-0 left-0 right-0 p-6">
                     <h3 className="text-2xl font-bold text-white mb-2">
                       {event.name}
@@ -250,14 +271,12 @@ const HomePage = () => {
                 </div>
 
                 <div className="p-6">
-                  {/* Description */}
                   {event.description && (
                     <p className="text-gray-600 mb-4 line-clamp-2">
                       {event.description}
                     </p>
                   )}
 
-                  {/* Event Info */}
                   <div className="space-y-3 mb-4">
                     <div className="flex items-center gap-3 text-gray-700">
                       <Calendar className="w-5 h-5 text-blue-600" />
@@ -279,7 +298,6 @@ const HomePage = () => {
                     </div>
                   </div>
 
-                  {/* Action Button */}
                   <button className="w-full bg-gradient-to-r from-blue-600 to-blue-500 text-white py-3 rounded-lg hover:from-blue-700 hover:to-blue-600 font-semibold transition-all group-hover:shadow-lg">
                     Xem chi tiết & Tham gia
                   </button>
@@ -298,10 +316,12 @@ const HomePage = () => {
             Kết nối Strava và tham gia cộng đồng chạy bộ ngay hôm nay
           </p>
           <button
-            onClick={handleLogin}
+            onClick={handleStravaLogin}
             className="bg-white text-orange-600 px-8 py-4 rounded-lg font-semibold hover:bg-orange-50 transition-colors inline-flex items-center gap-2 text-lg shadow-lg"
           >
-            <Activity className="w-6 h-6" />
+            <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169" />
+            </svg>
             Kết nối với Strava
           </button>
         </div>
@@ -322,7 +342,6 @@ const HomePage = () => {
       {selectedEventId && (
         <EventDetailModal
           eventId={selectedEventId}
-          currentUser={currentUser}
           onClose={() => setSelectedEventId(null)}
         />
       )}

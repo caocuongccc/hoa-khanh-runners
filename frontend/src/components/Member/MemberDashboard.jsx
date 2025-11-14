@@ -15,9 +15,7 @@ import {
   Map as MapIcon,
 } from "lucide-react";
 import { getEvents } from "../../services/firebase-service";
-import { 
-  isUserRegistered,
-} from "../../services/member-service";
+import { isUserRegistered } from "../../services/member-service";
 import { getStravaAuthUrl, refreshStravaToken } from "../../services/strava-service";
 import { syncUserActivities } from "../../services/strava-sync";
 import { logoutUser } from "../../services/auth-service";
@@ -38,8 +36,6 @@ const MemberDashboard = ({ user, onLogout }) => {
   const [syncStatus, setSyncStatus] = useState({ syncing: false, message: "" });
   const [tokenExpired, setTokenExpired] = useState(false);
   const [refreshingToken, setRefreshingToken] = useState(false);
-
-  // ✅ NEW: State cho activity view mode
   const [showMyActivitiesOnly, setShowMyActivitiesOnly] = useState(false);
 
   const stravaConnected = user?.stravaIntegration?.isConnected || false;
@@ -53,7 +49,7 @@ const MemberDashboard = ({ user, onLogout }) => {
       await loadMyActivities();
     };
     init();
-      // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const checkTokenExpiry = async () => {
@@ -428,7 +424,7 @@ const MemberDashboard = ({ user, onLogout }) => {
                 Kết nối với Strava
               </h3>
               <p className="text-sm text-orange-700 mb-4">
-                Kết nối tài khoản Strava để tự động đồng bộ hoạt động chạy bộ và
+                Kết nối tài khoản Strava để tự động đồng bộ hoạt động chạy bộ và 
                 tham gia sự kiện
               </p>
               <button
@@ -481,7 +477,10 @@ const MemberDashboard = ({ user, onLogout }) => {
               Sự kiện của tôi
             </h2>
             <button
-              onClick={() => setCurrentPage("my-events")}
+              onClick={() => {
+                setShowMyActivitiesOnly(true);
+                setCurrentPage("activities");
+              }}
               className="text-blue-600 hover:text-blue-700 flex items-center gap-1 font-medium"
             >
               Xem tất cả
@@ -633,72 +632,7 @@ const MemberDashboard = ({ user, onLogout }) => {
     </div>
   );
 
-  // My Events Page
-  const MyEventsPage = () => (
-    <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-gray-900">Sự kiện của tôi</h1>
-
-      {myEvents.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-md p-12 text-center">
-          <Trophy className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500 mb-4">
-            Bạn chưa tham gia sự kiện nào
-          </p>
-          <button
-            onClick={() => setCurrentPage("events")}
-            className="text-blue-600 hover:text-blue-700 font-medium"
-          >
-            Khám phá sự kiện →
-          </button>
-        </div>
-      ) : (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {myEvents.map((event) => (
-            <div
-              key={event.id}
-              className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-shadow cursor-pointer"
-              onClick={() => handleEventClick(event)}
-            >
-              <div className="relative h-48">
-                <img
-                  src={
-                    event.media?.coverImage ||
-                    "https://images.unsplash.com/photo-1552674605-db6ffd4facb5?w=800"
-                  }
-                  alt={event.name}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <div className="p-5">
-                <h3 className="font-bold text-gray-900 mb-3 line-clamp-2">
-                  {event.name}
-                </h3>
-                <div className="space-y-2 mb-4">
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <Calendar className="w-4 h-4" />
-                    <span>
-                      {event.startDate} - {event.endDate}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <Users className="w-4 h-4" />
-                    <span>
-                      {event.registration?.currentParticipants || 0} người tham gia
-                    </span>
-                  </div>
-                </div>
-                <button className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">
-                  Xem dashboard
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-
- // Events Page
+  // Events Page
   const EventsPage = () => (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -789,11 +723,10 @@ const MemberDashboard = ({ user, onLogout }) => {
     </div>
   );
 
-  // ✅ Activities Page - CẢI TIẾN với tabs [Tất cả | Của tôi] và [Danh sách | Bản đồ]
+  // ✅ Activities Page - Updated với heading động
   const ActivitiesPage = () => {
     const [viewMode, setViewMode] = useState("list");
 
-    // ✅ Lọc activities theo tab đã chọn
     const displayedActivities = showMyActivitiesOnly
       ? myActivities.filter(activity => 
           myEvents.some(event => {
@@ -903,7 +836,10 @@ const MemberDashboard = ({ user, onLogout }) => {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-4">
-          <h1 className="text-3xl font-bold text-gray-900">Hoạt động</h1>
+          {/* ✅ HEADING ĐỘNG: Hiển thị theo tab được chọn */}
+          <h1 className="text-3xl font-bold text-gray-900">
+            {showMyActivitiesOnly ? "Sự kiện của tôi" : "Hoạt động"}
+          </h1>
           
           <div className="flex items-center gap-3">
             {/* ✅ Tab: Tất cả / Của tôi */}
@@ -1102,7 +1038,6 @@ const MemberDashboard = ({ user, onLogout }) => {
       <main className="max-w-7xl mx-auto px-4 py-8">
         <StravaConnectCard />
         {currentPage === "home" && <HomePage />}
-        {currentPage === "my-events" && <MyEventsPage />}
         {currentPage === "activities" && <ActivitiesPage />}
         {currentPage === "events" && <EventsPage />}
         {currentPage === "event-detail" && <EventDetailPage />}

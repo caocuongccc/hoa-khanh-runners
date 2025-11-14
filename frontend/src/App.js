@@ -15,14 +15,48 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Listen to auth state changes
+    // ✅ Check localStorage first for Strava login
+    const checkLocalStorage = () => {
+      const storedUser = localStorage.getItem("currentUser");
+      if (storedUser) {
+        try {
+          const user = JSON.parse(storedUser);
+          console.log("✅ User loaded from localStorage:", user.name);
+          setCurrentUser(user);
+          setLoading(false);
+          return true;
+        } catch (error) {
+          console.error("Error parsing stored user:", error);
+          localStorage.removeItem("currentUser");
+        }
+      }
+      return false;
+    };
+
+    // Check localStorage immediately
+    const hasStoredUser = checkLocalStorage();
+
+    // ✅ Listen to custom event when user logs in via Strava
+    const handleUserLogin = () => {
+      console.log("🔔 User logged in event received");
+      checkLocalStorage();
+    };
+
+    window.addEventListener('userLoggedIn', handleUserLogin);
+
+    // Also listen to Firebase auth changes (for admin login)
     const unsubscribe = onAuthChange((user) => {
-      console.log("Auth state changed:", user);
-      setCurrentUser(user);
-      setLoading(false);
+      if (!hasStoredUser) {
+        console.log("Auth state changed:", user);
+        setCurrentUser(user);
+        setLoading(false);
+      }
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      window.removeEventListener('userLoggedIn', handleUserLogin);
+    };
   }, []);
 
   // Loading screen
@@ -44,15 +78,17 @@ function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/feed" element={<FeedPage currentUser={currentUser} />} />
         
-        {/* Auth Routes */}
-        <Route path="/login" element={<LoginPage onLoginSuccess={setCurrentUser} />} />
-        <Route path="/strava/callback" element={<StravaCallback currentUser={currentUser} />} />
+        {/* ✅ Auth Routes - Strava OAuth Callback */}
+        <Route path="/strava/callback" element={<StravaCallback />} />
+        
+        {/* ✅ Admin Route - Direct access for admin login */}
+        <Route path="/admin/login" element={<LoginPage onLoginSuccess={setCurrentUser} />} />
         
         {/* Admin Only Routes */}
         <Route path="/seed-data" element={<SeedDataPage />} />
         <Route path="/setup-admin" element={<SetupAdmin />} />
 
-        {/* Protected Routes - Login required */}
+        {/* ✅ Protected Member Routes - Auto redirect from Strava OAuth */}
         <Route
           path="/member/*"
           element={
@@ -66,11 +102,12 @@ function App() {
                 />
               )
             ) : (
-              <Navigate to="/login" replace />
+              <Navigate to="/" replace />
             )
           }
         />
 
+        {/* ✅ Admin Dashboard Routes */}
         <Route
           path="/admin/*"
           element={
@@ -80,7 +117,7 @@ function App() {
                 onLogout={() => setCurrentUser(null)}
               />
             ) : (
-              <Navigate to="/login" replace />
+              <Navigate to="/admin/login" replace />
             )
           }
         />
