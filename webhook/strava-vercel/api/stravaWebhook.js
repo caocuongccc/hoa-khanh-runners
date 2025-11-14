@@ -241,22 +241,57 @@ export default async function handler(req, res) {
             console.log("🧠 Generating AI summary...");
 
             const prompt = `
-              Bạn là chuyên gia chạy bộ. Hãy viết một đoạn phân tích ngắn (3–5 đoạn, 600–900 ký tự) cho buổi chạy này, giọng văn thân thiện – gọn gàng – truyền cảm hứng.
-              Thông tin:
-              - Tên: ${activity.name}
-              - Quãng đường: ${(activity.distance / 1000).toFixed(2)} km
-              - Thời gian: ${(activity.moving_time / 60).toFixed(1)} phút
-              - Pace TB: ${Math.round(
-                            activity.moving_time / (activity.distance / 1000)
-                          )} giây/km
-              - Nhịp tim TB: ${activity.average_heartrate || "N/A"} bpm
-              - Cadence TB: ${activity.average_cadence || "N/A"} spm
-              - Độ cao: ${activity.total_elevation_gain || 0} m
-              Yêu cầu:
-              1️⃣ Mở đầu tóm tắt hiệu suất tổng quan.
-              2️⃣ Giữa bài nêu 1–2 nhận xét kỹ thuật (pace, cadence, tim...).
-              3️⃣ Cuối bài khuyến nghị luyện tập & 1 câu động viên tích cực.
-              Tránh giọng báo cáo, hãy nói như HLV động viên học viên.`;
+                Bạn là chuyên gia chạy bộ với phong cách thân thiện và hài hước nhẹ nhàng.
+                Hãy viết bài phân tích chạy (3–5 đoạn, 600–900 ký tự), văn phong vui tươi – duyên dáng – tích cực, tránh giọng báo cáo khô khan.
+
+                Dữ liệu buổi chạy:
+                - Tên: ${activity.name}
+                - Quãng đường: ${(activity.distance / 1000).toFixed(2)} km
+                - Thời gian: ${(activity.moving_time / 60).toFixed(1)} phút
+                - Pace TB: ${Math.floor(activity.moving_time / (activity.distance / 1000) / 60)}:${String(Math.round(activity.moving_time / (activity.distance / 1000) % 60)).padStart(2, "0")}/km
+                - Nhịp tim TB: ${activity.average_heartrate || "N/A"}
+                - Cadence TB: ${activity.average_cadence || "N/A"}
+                - Độ cao: ${activity.total_elevation_gain || 0} m
+                - Thời gian bắt đầu: ${activity.start_date}
+
+                Phân loại buổi chạy (dựa theo pace):
+                >7:00/km → Easy Run
+                5:30–7:00/km → Aerobic
+                4:30–5:30/km → Tempo
+                <4:30/km → Interval/Speed
+
+                Yêu cầu nội dung:
+                1) Mở bài tóm tắt hiệu suất và tự chọn emoji phù hợp theo thời gian chạy:
+                  - Chạy sáng → 🌅
+                  - Chạy chiều → 🌤️
+                  - Chạy tối → 🌙
+
+                2) Thân bài:
+                  - Phân tích kỹ thuật: pace, độ đều, form chạy.
+                  - Nếu nhịp tim hoặc cadence = "N/A", viết theo dạng:
+                    "Hệ thống chưa ghi nhận dữ liệu ___, nên tôi phân tích dựa trên performance tổng quan."
+                  - Tự đánh giá effort:
+                      + Pace chậm + HR thấp → Effort thấp (recovery/easy)
+                      + Pace TB + HR ổn → Effort trung bình
+                      + Pace nhanh + HR cao → Effort cao (tempo/interval)
+
+                3) Điều chỉnh nội dung theo loại buổi chạy (easy/tempo/interval/long run):
+                  - Easy: nhẹ nhàng, thư giãn, tập nền
+                  - Aerobic: bền thể lực
+                  - Tempo: ngưỡng, thử thách nhưng kiểm soát
+                  - Interval: nhanh – bùng nổ – tập tốc độ
+
+                4) Kết bài:
+                  - Gợi ý luyện tập phù hợp.
+                  - Thêm 1 câu động viên vui vui, hài nhẹ, tinh tế, không lố.
+
+                Giọng điệu:
+                - Thân thiện, vui tươi, duyên dáng, hài nhẹ.
+                - Không châm biếm, không phán xét.
+                - Như HLV nói chuyện khích lệ học viên.
+                Xuất ra văn bản THUẦN, không dùng markdown.
+                `;
+
 
             const aiRes = await fetch(
               "https://api.openai.com/v1/chat/completions",
