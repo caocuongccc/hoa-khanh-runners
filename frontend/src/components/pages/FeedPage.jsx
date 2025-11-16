@@ -20,6 +20,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../../services/firebase";
 import SharedHeader from "../Shared/SharedHeader";
+import ActivityMap from "../Shared/ActivityMap";
 
 const FeedPage = () => {
   const navigate = useNavigate();
@@ -224,12 +225,19 @@ const FeedPage = () => {
                     </div>
                   </div>
 
-                  {/* Map Preview */}
-                  {activity.map?.summaryPolyline && (
+                  {/* Map Preview - ✅ NOW USING ActivityMap */}
+                  {activity.map?.summaryPolyline ? (
+                    <div className="mb-4 rounded-lg overflow-hidden">
+                      <ActivityMap 
+                        summaryPolyline={activity.map.summaryPolyline}
+                        height="250px"
+                      />
+                    </div>
+                  ) : (
                     <div className="h-48 bg-gradient-to-br from-blue-100 to-blue-50 rounded-lg flex items-center justify-center mb-4">
                       <div className="text-center">
                         <MapPin className="w-12 h-12 text-blue-400 mx-auto mb-2" />
-                        <p className="text-sm text-gray-600">Route map</p>
+                        <p className="text-sm text-gray-600">No route data</p>
                       </div>
                     </div>
                   )}

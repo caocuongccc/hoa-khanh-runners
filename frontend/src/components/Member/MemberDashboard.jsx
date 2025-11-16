@@ -19,6 +19,7 @@ import { syncUserActivities } from "../../services/strava-sync";
 import { collection, query, where, getDocs, doc, updateDoc } from "firebase/firestore";
 import { db } from "../../services/firebase";
 import SharedHeader from "../Shared/SharedHeader";
+import ActivityMap from "../Shared/ActivityMap";
 import EventRegistrationModal from "./EventRegistrationModal";
 import EventDashboard from "./EventDashboard";
 
@@ -36,10 +37,9 @@ const MemberDashboard = ({ user, onLogout }) => {
   const [tokenExpired, setTokenExpired] = useState(false);
   const [refreshingToken, setRefreshingToken] = useState(false);
 
-  // ✅ NEW: State for activities page
-  const [showEventsList, setShowEventsList] = useState(false); // "Sự kiện của tôi" mode
-  const [viewMode, setViewMode] = useState("list"); // "list" or "map"
-
+  // ✅ State cho trang activities - 3 chế độ: "list", "map", "events"
+  const [viewMode, setViewMode] = useState("list");
+  
   const stravaConnected = user?.stravaIntegration?.isConnected || false;
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [registeringEvent, setRegisteringEvent] = useState(null);
@@ -366,7 +366,7 @@ const MemberDashboard = ({ user, onLogout }) => {
     </div>
   );
 
-  // ✅ Home Page - BỎ "Sự kiện của tôi", CHỈ SHOW 3 SỰ KIỆN MỚI NHẤT
+  // Home Page
   const HomePage = () => (
     <div className="space-y-8">
       <div className="bg-gradient-to-r from-green-600 to-green-400 rounded-2xl p-8 md:p-12 text-white">
@@ -390,7 +390,6 @@ const MemberDashboard = ({ user, onLogout }) => {
         </div>
       </div>
 
-      {/* ✅ CHỈ SHOW 3 SỰ KIỆN MỚI NHẤT/HOT NHẤT */}
       <div>
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-gray-900">
@@ -494,7 +493,7 @@ const MemberDashboard = ({ user, onLogout }) => {
     </div>
   );
 
-  // ✅ Events Page - Grid 3 cột, sort giảm dần theo thời gian
+  // Events Page
   const EventsPage = () => (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -585,75 +584,28 @@ const MemberDashboard = ({ user, onLogout }) => {
     </div>
   );
 
-  // ✅ Activities Page - MỚI REDESIGN
+  // Activities Page
   const ActivitiesPage = () => {
-    const getMapImageUrl = (polyline, width = 400, height = 300) => {
-      if (!polyline) return null;
-      const GOOGLE_MAPS_KEY = process.env.REACT_APP_GOOGLE_MAPS_KEY;
-      
-      if (GOOGLE_MAPS_KEY) {
-        return `https://maps.googleapis.com/maps/api/staticmap?size=${width}x${height}&path=enc:${polyline}&key=${GOOGLE_MAPS_KEY}`;
-      }
-      
-      return `https://staticmap.openstreetmap.de/staticmap.php?center=auto&zoom=14&size=${width}x${height}&path=enc:${polyline}&markers=0,0,red`;
-    };
-
     const ActivityCard = ({ activity }) => {
-      const mapUrl = getMapImageUrl(activity.map?.summaryPolyline, 600, 400);
-      
       return (
         <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
           {viewMode === "map" && activity.map?.summaryPolyline && (
-            <div className="h-48 bg-gray-100 relative">
-              {mapUrl ? (
-                <img
-                  src={mapUrl}
-                  alt="Route"
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    e.target.style.display = 'none';
-                    const placeholder = document.createElement('div');
-                    placeholder.className = 'w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-100 to-blue-50';
-                    placeholder.innerHTML = `
-                      <div class="text-center">
-                        <svg class="w-12 h-12 mx-auto text-blue-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-                        </svg>
-                        <p class="text-sm text-gray-500">${activity.distance?.toFixed(2)} km</p>
-                      </div>
-                    `;
-                    e.target.parentElement.appendChild(placeholder);
-                  }}
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-100 to-blue-50">
-                  <div className="text-center">
-                    <Calendar className="w-12 h-12 mx-auto text-blue-400 mb-2" />
-                    <p className="text-sm text-gray-500">{activity.distance?.toFixed(2)} km</p>
-                  </div>
-                </div>
-              )}
+            <div className="h-48">
+              <ActivityMap 
+                summaryPolyline={activity.map.summaryPolyline}
+                height="192px"
+              />
             </div>
           )}
           
           <div className="p-4">
             <div className="flex items-start gap-3">
               {viewMode === "list" && activity.map?.summaryPolyline && (
-                <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                  {getMapImageUrl(activity.map.summaryPolyline, 200, 200) ? (
-                    <img
-                      src={getMapImageUrl(activity.map.summaryPolyline, 200, 200)}
-                      alt="Route"
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                      }}
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-blue-50">
-                      <Activity className="w-8 h-8 text-blue-300" />
-                    </div>
-                  )}
+                <div className="w-20 h-20 rounded-lg overflow-hidden flex-shrink-0">
+                  <ActivityMap 
+                    summaryPolyline={activity.map.summaryPolyline}
+                    height="80px"
+                  />
                 </div>
               )}
               
@@ -682,7 +634,6 @@ const MemberDashboard = ({ user, onLogout }) => {
       );
     };
 
-    // ✅ Event Card for "Sự kiện của tôi" mode
     const EventCard = ({ event }) => (
       <div
         className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-shadow cursor-pointer"
@@ -731,54 +682,60 @@ const MemberDashboard = ({ user, onLogout }) => {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-4">
-          {/* ✅ HEADING ĐỘNG */}
           <h1 className="text-3xl font-bold text-gray-900">
-            {showEventsList ? "Sự kiện của tôi" : "Hoạt động"}
+            {viewMode === "events" ? "Sự kiện của tôi" : "Hoạt động của tôi"}
           </h1>
           
-          <div className="flex items-center gap-3">
-            {/* ✅ Button: Sự kiện của tôi */}
-            <button
-              onClick={() => setShowEventsList(!showEventsList)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                showEventsList
-                  ? "bg-blue-600 text-white"
-                  : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
-              }`}
-            >
-              Sự kiện của tôi
-            </button>
-
-            {/* ✅ View Toggle: Danh sách / Bản đồ - CHỈ HIỆN KHI KHÔNG Ở MODE "SỰ KIỆN" */}
-            {!showEventsList && (
-              <div className="inline-flex rounded-lg border border-gray-300 bg-white p-1">
-                <button
-                  onClick={() => setViewMode("list")}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-md transition-colors ${
-                    viewMode === "list"
-                      ? "bg-blue-600 text-white"
-                      : "text-gray-600 hover:bg-gray-50"
-                  }`}
-                >
-                  <List className="w-4 h-4" />
-                  <span className="text-sm font-medium">Danh sách</span>
-                </button>
-                <button
-                  onClick={() => setViewMode("map")}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-md transition-colors ${
-                    viewMode === "map"
-                      ? "bg-blue-600 text-white"
-                      : "text-gray-600 hover:bg-gray-50"
-                  }`}
-                >
-                  <MapIcon className="w-4 h-4" />
-                  <span className="text-sm font-medium">Bản đồ</span>
-                </button>
-              </div>
-            )}
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* ✅ Group 3 nút: Danh sách / Bản đồ / Sự kiện */}
+            <div className="inline-flex rounded-lg border border-gray-300 bg-white p-1">
+              <button
+                onClick={() => {
+                  setViewMode("list");
+                  loadMyActivities();
+                }}
+                className={`flex items-center gap-2 px-3 py-2 rounded-md transition-colors ${
+                  viewMode === "list"
+                    ? "bg-blue-600 text-white"
+                    : "text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                <List className="w-4 h-4" />
+                <span className="text-sm font-medium">Danh sách</span>
+              </button>
+              <button
+                onClick={() => {
+                  setViewMode("map");
+                  loadMyActivities();
+                }}
+                className={`flex items-center gap-2 px-3 py-2 rounded-md transition-colors ${
+                  viewMode === "map"
+                    ? "bg-blue-600 text-white"
+                    : "text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                <MapIcon className="w-4 h-4" />
+                <span className="text-sm font-medium">Bản đồ</span>
+              </button>
+              <button
+                onClick={() => {
+                  setViewMode("events");
+                  loadEvents();
+                }}
+                className={`flex items-center gap-2 px-3 py-2 rounded-md transition-colors ${
+                  viewMode === "events"
+                    ? "bg-blue-600 text-white"
+                    : "text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                <Trophy className="w-4 h-4" />
+                <span className="text-sm font-medium">Sự kiện</span>
+              </button>
+            </div>
             
+            {/* ✅ Làm mới button */}
             <button
-              onClick={loadMyActivities}
+              onClick={viewMode === "events" ? loadEvents : loadMyActivities}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
               <RefreshCw className="w-4 h-4" />
@@ -788,8 +745,8 @@ const MemberDashboard = ({ user, onLogout }) => {
         </div>
 
         {/* ✅ CONTENT: Show Events hoặc Activities */}
-        {showEventsList ? (
-          // ✅ MODE: Sự kiện của tôi - Show grid events
+        {viewMode === "events" ? (
+          // MODE: Sự kiện của tôi - Show grid events
           myEvents.length === 0 ? (
             <div className="bg-white rounded-xl shadow-md p-12 text-center">
               <Trophy className="w-16 h-16 text-gray-300 mx-auto mb-4" />
@@ -811,7 +768,7 @@ const MemberDashboard = ({ user, onLogout }) => {
             </div>
           )
         ) : (
-          // ✅ MODE: Hoạt động - Show activities
+          // MODE: Hoạt động - Show activities (list or map view)
           activitiesLoading ? (
             <div className="text-center py-12">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
@@ -940,13 +897,11 @@ const MemberDashboard = ({ user, onLogout }) => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* ✅ Use SharedHeader */}
       <SharedHeader currentUser={user} onLogout={onLogout} />
       
       <main className="max-w-7xl mx-auto px-4 py-8">
         <StravaConnectCard />
         
-        {/* ✅ Use Routes for nested navigation */}
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/events" element={<EventsPage />} />

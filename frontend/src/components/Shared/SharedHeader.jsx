@@ -1,5 +1,6 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import { Activity, Home, Calendar, TrendingUp, LogOut } from "lucide-react";
+import { getStravaAuthUrl } from "../../services/strava-service";
 
 const SharedHeader = ({ currentUser, onLogout }) => {
   const navigate = useNavigate();
