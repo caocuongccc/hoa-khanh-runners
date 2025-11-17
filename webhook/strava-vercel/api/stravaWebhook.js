@@ -242,7 +242,9 @@ export default async function handler(req, res) {
 
             // 1. Chuyển start_date về giờ địa phương UTC+7
             const startDateUTC = new Date(activity.start_date); // ví dụ "November 14, 2025 at 2:30:00 AM UTC+7"
-            const startDate = new Date(startDateUTC.getTime() + 7*60*60*1000); // chuyển sang UTC+7
+            const startDate = new Date(
+              startDateUTC.getTime() + 7 * 60 * 60 * 1000
+            ); // chuyển sang UTC+7
             const hours = startDate.getHours();
 
             // 2. Xác định thời gian trong ngày và emoji
@@ -261,8 +263,12 @@ export default async function handler(req, res) {
             }
 
             // 3. Tính pace trung bình dạng phút:giây
-            const paceMinutes = Math.floor(activity.moving_time / (activity.distance / 1000) / 60);
-            const paceSeconds = Math.round(activity.moving_time / (activity.distance / 1000) % 60);
+            const paceMinutes = Math.floor(
+              activity.moving_time / (activity.distance / 1000) / 60
+            );
+            const paceSeconds = Math.round(
+              (activity.moving_time / (activity.distance / 1000)) % 60
+            );
             const paceFormatted = `${paceMinutes}:${String(paceSeconds).padStart(2, "0")}/km`;
 
             // 4. Phân loại buổi chạy theo pace
@@ -280,52 +286,60 @@ export default async function handler(req, res) {
 
             // 5. Tạo prompt hoàn chỉnh
             const prompt = `
-            Bạn là chuyên gia chạy bộ với phong cách thân thiện và hài hước nhẹ nhàng.
-            Hãy viết bài phân tích chạy (3–5 đoạn, 600–900 ký tự), văn phong vui tươi – duyên dáng – tích cực, tránh giọng báo cáo khô khan.
+Bạn là HLV chạy bộ với phong cách thân thiện – kỹ thuật – nhẹ nhàng vui vẻ. 
+Hãy tạo bản phân tích chạy bộ theo đúng FORMAT bên dưới (đầy đủ tiêu đề, emoji, bullet rõ ràng). 
+Độ dài tối ưu: 5–10 đoạn ngắn, không lan man.
 
-            Dữ liệu buổi chạy:
-            - Tên: ${activity.name}
-            - Quãng đường: ${(activity.distance / 1000).toFixed(2)} km
-            - Thời gian: ${(activity.moving_time / 60).toFixed(1)} phút
-            - Pace TB: ${paceFormatted}
-            - Nhịp tim TB: ${activity.average_heartrate || "N/A"}
-            - Cadence TB: ${activity.average_cadence || "N/A"}
-            - Độ cao: ${activity.total_elevation_gain || 0} m
-            - Thời gian bắt đầu: ${activity.start_date}
+===== THÔNG TIN HOẠT ĐỘNG =====
+Tên: ${activity.name}
+Quãng đường: ${(activity.distance / 1000).toFixed(2)} km
+Thời gian: ${(activity.moving_time / 60).toFixed(1)} phút
+Pace TB: ${Math.round(activity.moving_time / (activity.distance / 1000))} giây/km
+Nhịp tim TB: ${activity.average_heartrate || "N/A"}
+Cadence TB: ${activity.average_cadence || "N/A"}
+Độ cao: ${activity.total_elevation_gain || 0} m
+Bắt đầu lúc: ${activity.start_date_local}
 
-            Phân loại buổi chạy: ${runType}
+Nếu dữ liệu nào "N/A", hãy chèn câu dạng:
+"⛔ Chúng tôi chưa ghi nhận được dữ liệu XYZ nên không thể phân tích mục này."
 
-            Yêu cầu nội dung:
-            1) Mở bài tóm tắt hiệu suất và tự chọn emoji phù hợp theo thời gian chạy:
-              Chào mừng bạn đến với buổi chạy ${timeOfDay} thật tuyệt vời! ${emoji}
+===== YÊU CẦU OUTPUT =====
 
-            2) Thân bài:
-              - Phân tích kỹ thuật: pace, độ đều, form chạy.
-              - Nếu nhịp tim hoặc cadence = "N/A", viết theo dạng:
-                "Hệ thống chưa ghi nhận dữ liệu ___, nên tôi phân tích dựa trên performance tổng quan."
-              - Tự đánh giá effort:
-                  + Pace chậm + HR thấp → Effort thấp (recovery/easy)
-                  + Pace TB + HR ổn → Effort trung bình
-                  + Pace nhanh + HR cao → Effort cao (tempo/interval)
+1️⃣ TÓM TẮT HOẠT ĐỘNG  
+- Tự động xác định loại buổi chạy (easy / tempo / intervals / long run) dựa trên pace & duration.  
+- Gồm 2–3 dòng: loại chạy, chỉ số chính, đánh giá tổng quan.  
+- Giọng vui nhẹ: kiểu “Ổn áp”, “ngon nghẻ”, “vững như cơm nếp”.
 
-            3) Điều chỉnh nội dung theo loại buổi chạy (Easy/Aerobic/Tempo/Interval):
-              - Easy: nhẹ nhàng, thư giãn, tập nền
-              - Aerobic: bền thể lực
-              - Tempo: ngưỡng, thử thách nhưng kiểm soát
-              - Interval: nhanh – bùng nổ – tập tốc độ
+2️⃣ PHÂN TÍCH HIỆU SUẤT  
+- Phân tích pace, nhịp tim, cadence, độ đều lap.  
+- Nếu có laps → nhận xét lap nhanh nhất / chậm nhất.  
+- Gợi ý kỹ thuật ngắn (tối đa 2 ý).  
+- Luôn dùng phút/km thay vì giây/km.
 
-            4) Kết bài:
-              - Gợi ý luyện tập phù hợp.
-              - Thêm 1 câu động viên vui vui, hài nhẹ, tinh tế, không lố.
+3️⃣ THỜI TIẾT & ẢNH HƯỞNG  
+- Dựa theo dữ liệu nếu có (nhiệt độ, gió, ẩm).  
+- Chèn emoji phù hợp: 🌡💨💧☔  
+- Nếu không có dữ liệu → nói nhẹ: “Không có dữ liệu thời tiết, nên tôi đoán là trời khá… chạy được 😁”.
 
-            Giọng điệu:
-            - Thân thiện, vui tươi, duyên dáng, hài nhẹ.
-            - Không châm biếm, không phán xét.
-            - Như HLV nói chuyện khích lệ học viên.
-            Xuất ra văn bản THUẦN, không dùng markdown.
-            `;
+4️⃣ BỐI CẢNH TẬP LUYỆN  
+- Nhận xét dựa vào tuần hiện tại (nếu có).  
+- Dạng ngắn: km tuần này, so sánh gần đây.  
+- Một câu vui nhẹ: “Không quá tải đâu, yên tâm!”
 
+5️⃣ TIẾN TRIỂN MỤC TIÊU  
+- Nếu có mục tiêu (HM / FM / sub…), hãy nhận xét tiến độ.  
+- Nếu không có → gợi ý nhẹ: “Bạn nên đặt mục tiêu để AI động viên chuẩn bài hơn 🤭.”
 
+6️⃣ GỢI Ý TIẾP THEO  
+- Tối đa 3 ý thực tế: recovery, bài tập gợi ý, lưu ý.  
+- 1 câu động viên cuối: “Chạy tiếp đi, hôm nay bạn ‘ổn áp’ đấy! 🔥”
+
+===== PHONG CÁCH =====
+- Ngắn – rõ – thân thiện – có emoji nhưng không lạm dụng.
+- Hài nhẹ (nhưng không lố): kiểu "nhịp tim ổn như wifi full vạch".
+- Không kể chuyện dài dòng.
+- Giữ format rõ ràng, dùng số thứ tự như mẫu RunningMates AI.
+`;
 
             const aiRes = await fetch(
               "https://api.openai.com/v1/chat/completions",
